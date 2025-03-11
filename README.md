@@ -1,2 +1,3 @@
-# AnalysisComm
-This is the repo of a validation system to compare the impact on performance of different reliable transport scheme
+# NetCommExp - Network Communication Xeperiment
+
+This project is to explore the impact of different network transport protocol designs on performance metrics under different network conditions.
