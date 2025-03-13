@@ -10,7 +10,7 @@ The rest of this document will describe the terms and definitions, common concep
 
 ## Elements in Network Communication
 
-A reliable transport protocol is supposed to run on the Internet where packets will be dropped or be late delivered with probability.
+A reliable transport protocol is supposed to run on the Internet where packets will be dropped or be late delivered with probability. Entities called **Application** use the reliable transport protocol to send and receive data to each other.
 
 The entity that generating or receving internet packets is called **endpoint** in this system. The endpoint that sending packets is called **sender** while the one receving packets is called **receiver**.
 
