@@ -35,7 +35,7 @@ class Protocol(ABC):
         pass
 
     @abstractmethod
-    def sendto(self, data: bytes, address: Optional[Tuple[str, int]] = None) -> int:
+    def send(self, data: bytes, address: Optional[Tuple[str, int]] = None) -> int:
         """Send a message to the designated receiver
         
         Args:

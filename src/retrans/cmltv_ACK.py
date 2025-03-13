@@ -103,13 +103,19 @@ def parse_packet(data: bytes) -> CAPSegment:
         payload=data[12:]
     )
 
+"""CAP protocol implementation"""
 class CAP(Protocol):
-    """CAP protocol implementation"""
+    MTU = 1024
+
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         # Connection Block to record connection data
         self.CB = ConnectionBlock()
         logger.debug(f"CAP socket created")
+
+    def _send(self, data: bytes) -> int:
+        """Send data to the socket"""
+        return self.socket.sendto(data, self.CB.remote_address)
 
     def bind(self, address: Tuple[str, int]) -> None:
         """Bind the socket to a specific address and port"""
@@ -117,42 +123,46 @@ class CAP(Protocol):
         logger.debug(f"CAP socket bound to {address}")
 
     def connect(self, address: Tuple[str, int]) -> None:
-        """Connect to a specific address and port"""
-        self.socket.connect(address)
-        logger.debug(f"Initiating connection to {address}")
+        # Set remote address before sending SYN
+        self.CB.remote_address = address  # Set remote address
         
         # Send SYN
         syn_packet = make_packet(
             seg_type=SegmentType.SYN,
             seq_num=0  # Initial sequence number
         )
-        self.socket.send(syn_packet)
+        self._send(syn_packet)
+        self.CB.state = ConnectionState.SYN_SENT
         logger.debug(f"Sent SYN packet with seq_num=0")
         
         # Wait for SYN-ACK
         try:
             data = self.socket.recv(1024)  # Adjust buffer size as needed
             syn_ack_segment = parse_packet(data)
+
+            # check if the SYN-ACK packet is received
+            if syn_ack_segment.type != SegmentType.SYN_ACK:
+                logger.error("Expected SYN-ACK packet, but received different type")
+                raise ValueError("Invalid packet type received")
+
+            # Update ConnectionBlock with connection data
+            self.CB.state = ConnectionState.ESTABLISHED
+            self.CB.local_address = self.socket.getsockname()  # Get local address
+            self.CB.seq_num = 1  # Set sequence number
+            self.CB.ack_num = syn_ack_segment.seq_num + 1  # Set acknowledgment number
             logger.debug(f"Received SYN-ACK packet with seq_num={syn_ack_segment.seq_num}, ack_num={syn_ack_segment.ack_num}")
-            
+                
             # Send DataAck to complete handshake
             data_ack_packet = make_packet(
                 seg_type=SegmentType.DATA_ACK,
                 seq_num=1,  # Increment sequence number
                 ack_num=syn_ack_segment.seq_num + 1  # Acknowledge SYN-ACK
             )
-            self.socket.send(data_ack_packet)
+            self._send(data_ack_packet)
             logger.debug("Connection established")
 
-            # Update ConnectionBlock with connection data
-            self.CB.state = ConnectionState.ESTABLISHED
-            self.CB.local_address = self.socket.getsockname()  # Get local address
-            self.CB.remote_address = address  # Set remote address
-            self.CB.seq_num = 1  # Set sequence number
-            self.CB.ack_num = syn_ack_segment.seq_num + 1  # Set acknowledgment number
-            
         except socket.timeout:
-            logger.error("Connection timeout while waiting for SYN-ACK")
+            logger.error("Connection timeout")
             raise
         except Exception as e:
             logger.error(f"Connection failed: {str(e)}")
@@ -168,7 +178,7 @@ class CAP(Protocol):
 
         """Accept an incoming connection request and establish a connection"""
         # Step 1: Wait for a SYN packet
-        data, addr = self.socket.recvfrom(1024)  # Adjust buffer size as needed
+        data, addr = self.socket.recvfrom(CAP.MTU)  # Adjust buffer size as needed
         syn_segment = parse_packet(data)
         
         if syn_segment.type != SegmentType.SYN:
@@ -187,7 +197,7 @@ class CAP(Protocol):
         logger.debug(f"Sent SYN-ACK packet to {addr} with ack_num={syn_segment.seq_num + 1}")
 
         # Step 3: Wait for DataAck packet
-        data, addr = self.socket.recvfrom(1024)  # Adjust buffer size as needed
+        data, addr = self.socket.recvfrom(CAP.MTU)  # Adjust buffer size as needed
         data_ack_segment = parse_packet(data)
 
         if data_ack_segment.type != SegmentType.DATA_ACK:
@@ -207,7 +217,7 @@ class CAP(Protocol):
         logger.debug("Connection established with client")
         return self, addr
 
-    def sendto(self, data: bytes, address: Tuple[str, int]) -> int:
+    def send(self, data: bytes) -> int:
         """Send data to a specific address and port"""
         pass
 
