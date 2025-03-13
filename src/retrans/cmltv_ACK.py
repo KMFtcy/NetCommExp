@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 from dataclasses import dataclass, field
 from src.protocol import Protocol
 import socket
@@ -40,6 +40,26 @@ class CAPSegment:
     seq_num: int = 0                      # 32 bits
     ack_num: int = 0                      # 32 bits
     payload: bytes = b''                  # Payload
+
+# New enum for connection states
+class ConnectionState(Enum):
+    CLOSED = 0  # Initial state, connection is closed
+    LISTEN = 1  # Receiver waiting for connection request
+    SYN_SENT = 2  # Sender has sent connection request
+    SYN_RCVD = 3  # Receiver has received and responded to connection request
+    ESTABLISHED = 4  # Connection established, data transfer enabled
+    FIN_WAIT = 5  # Sender requesting connection termination
+    CLOSE_WAIT = 6  # Receiver has received termination request
+    TIME_WAIT = 7  # Waiting for all packets to expire
+
+@dataclass
+class ConnectionBlock:
+    """Records relevant data for a connection"""
+    state: ConnectionState = ConnectionState.CLOSED  # Connection state
+    local_address: Tuple[str, int] = field(default_factory=lambda: ("", 0))  # Local address
+    remote_address: Tuple[str, int] = field(default_factory=lambda: ("", 0))  # Remote address
+    seq_num: int = 0  # Sequence number
+    ack_num: int = 0  # Acknowledgment number
 
 def make_packet(seg_type: SegmentType, seq_num: int, ack_num: int = 0, payload: bytes = b'') -> bytes:
     """Create a packet from the given parameters
@@ -86,8 +106,9 @@ def parse_packet(data: bytes) -> CAPSegment:
 class CAP(Protocol):
     """CAP protocol implementation"""
     def __init__(self):
-        self.listening = False
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Connection Block to record connection data
+        self.CB = ConnectionBlock()
         logger.debug(f"CAP socket created")
 
     def bind(self, address: Tuple[str, int]) -> None:
@@ -122,6 +143,13 @@ class CAP(Protocol):
             )
             self.socket.send(data_ack_packet)
             logger.debug("Connection established")
+
+            # Update ConnectionBlock with connection data
+            self.CB.state = ConnectionState.ESTABLISHED
+            self.CB.local_address = self.socket.getsockname()  # Get local address
+            self.CB.remote_address = address  # Set remote address
+            self.CB.seq_num = 1  # Set sequence number
+            self.CB.ack_num = syn_ack_segment.seq_num + 1  # Set acknowledgment number
             
         except socket.timeout:
             logger.error("Connection timeout while waiting for SYN-ACK")
@@ -132,9 +160,12 @@ class CAP(Protocol):
 
     def listen(self, backlog: int = 1) -> None:
         """Put the socket in passive mode, waiting for incoming connection requests"""
-        self.listening = True
+        self.CB.state = ConnectionState.LISTEN
 
     def accept(self) -> Tuple['CAP', Tuple[str, int]]:
+        if self.CB.state != ConnectionState.LISTEN:
+            raise ValueError("Socket is not in listening mode")
+
         """Accept an incoming connection request and establish a connection"""
         # Step 1: Wait for a SYN packet
         data, addr = self.socket.recvfrom(1024)  # Adjust buffer size as needed
@@ -164,6 +195,13 @@ class CAP(Protocol):
             raise ValueError("Invalid packet type received")
 
         logger.debug(f"Received DataAck packet from {addr} with seq_num={data_ack_segment.seq_num}, ack_num={data_ack_segment.ack_num}")
+
+        # Update ConnectionBlock with connection data
+        self.CB.state = ConnectionState.ESTABLISHED
+        self.CB.local_address = self.socket.getsockname()  # Get local address
+        self.CB.remote_address = addr  # Set remote address
+        self.CB.seq_num = 0  # Set sequence number for server
+        self.CB.ack_num = data_ack_segment.seq_num + 1  # Set acknowledgment number
 
         # Connection established
         logger.debug("Connection established with client")
