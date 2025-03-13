@@ -100,8 +100,6 @@ The header consists of the following fields:
 | Reserved | 28 | Reserved for future protocol extensions.|
 | Sequence Number | 32 | Uniquely identifies each segment in transmission order. Initialized to a random value during connection setup and increments by one for each subsequent segment. |
 | Ack Number | 32 | Indicates the next expected sequence number, acknowledging all segments up to (Ack Number - 1). Valid in SYN-ACK, DataAck, and FIN-ACK segments. |
-| Payload Length | 16 | Specifies the length of the segment payload in bytes, excluding the header. |
-| Checksum | 16 | A 16-bit checksum for error detection, calculated over the entire segment including header and payload. |
 
 The header format in bits shows below:
 
@@ -114,7 +112,5 @@ The header format in bits shows below:
 |                        Sequence Number                          |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                         Ack Number                             |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|         Payload Length         |          Checksum             |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
