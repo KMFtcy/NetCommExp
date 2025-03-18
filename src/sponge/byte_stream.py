@@ -1,7 +1,9 @@
+from collections import deque
+
 # ByteStream is a buffer between network component and user application
 class ByteStream:
     def __init__(self, capacity: int):
-        self.buffer = bytearray(0)
+        self.buffer = deque(maxlen=capacity)  # Initialize a deque with maxlen
         self.capacity = capacity
         self.closed = False
         self.error = {}
@@ -15,8 +17,8 @@ class ByteStream:
             raise ValueError("Stream is closed")
         if len(data) > self.available_capacity():
             raise ValueError("Not enough capacity")
-        self._bytes_pushed += len(data)
         self.buffer.extend(data)
+        self._bytes_pushed += len(data)
         return len(data)
 
     # signal that the stream is closed and nothing more will be written to it
@@ -40,17 +42,19 @@ class ByteStream:
         if self.is_finished():
             raise ValueError("Stream is finished")
         if n > len(self.buffer):
-            return self.buffer[-1]
-        return self.buffer[:n]
+            n = len(self.buffer)
+        return bytes([self.buffer[i] for i in range(n)])
 
     def pop(self, n: int) -> bytes:
         if self.is_finished():
             raise ValueError("Stream is finished")
         if n > len(self.buffer):
             n = len(self.buffer)
+        result = bytearray(n)
+        for i in range(n):
+            result[i] = self.buffer.popleft()
         self._bytes_popped += n
-        popped = [self.buffer.pop(0) for _ in range(n)]
-        return popped
+        return bytes(result)
 
     # check if the stream is closed and fully popped
     def is_finished(self) -> bool:
@@ -62,7 +66,7 @@ class ByteStream:
 
     # check how many bytes are currently buffered in the stream
     def bytes_buffered(self) -> int:
-        return self._bytes_pushed - self._bytes_popped
+        return len(self.buffer)
     
     # check how many bytes have been popped from the stream
     def bytes_popped(self) -> int:
