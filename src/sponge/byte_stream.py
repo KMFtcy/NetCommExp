@@ -1,7 +1,7 @@
 # ByteStream is a buffer between network component and user application
 class ByteStream:
     def __init__(self, capacity: int):
-        self.buffer = []
+        self.buffer = bytearray(0)
         self.capacity = capacity
         self.closed = False
         self.error = {}
