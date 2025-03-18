@@ -2,10 +2,10 @@ from src.sponge.byte_stream import ByteStream
 
 # Reassembler is the upstream of ByteStream
 class Reassembler:
-    def __init__(self, capacity: int):
+    def __init__(self, output: ByteStream):
         self.unassembled_bytes = {}
         self.first_unassembled = 0
-        self.output = ByteStream(capacity)
+        self.output = output
 
     def insert(self, index: int, data: bytes, eof: bool) -> None:
         if index != self.first_unassembled:
