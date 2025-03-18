@@ -6,7 +6,7 @@ from src.sponge.byte_stream import ByteStream as stream
 class Reassembler:
     def __init__(self, output: stream):
         self.unass_base = 0  # Index of the first unassembled byte
-        self.capacity = output.capacity()  # Buffer capacity
+        self.capacity = output.capacity  # Buffer capacity
         self.buffer = deque(['\0'] * self.capacity)  # Buffer to store out-of-order data
         self.bitmap = deque([False] * self.capacity)  # Bitmap to track which positions have data
         self.unass_size = 0  # Amount of unassembled but stored data
@@ -15,20 +15,21 @@ class Reassembler:
 
     def check_contiguous(self):
         """Check for contiguous data in buffer and push to output stream"""
-        tmp = ""
+        tmp = []  # Use a list to temporarily store bytes
         # Continue processing as long as the front element is set
         while self.bitmap[0]:
-            tmp += self.buffer[0]
+            tmp.append(self.buffer[0])
             self.buffer.popleft()
             self.bitmap.popleft()
             self.buffer.append('\0')
             self.bitmap.append(False)
         
         if len(tmp) > 0:
-            # Write to output stream
-            self.unass_base += len(tmp)
-            self.unass_size -= len(tmp)
-            self.output_.push(tmp)
+            # Convert list to bytes and write to output stream
+            contiguous_data = bytes(tmp)
+            self.unass_base += len(contiguous_data)
+            self.unass_size -= len(contiguous_data)
+            self.output_.push(contiguous_data)
 
     def insert(self, segment_idx: int, data: str, eof: bool) -> None:
         """
