@@ -1,4 +1,4 @@
-from src.sponge.byte_stream import ByteStream
+from src.util.byte_stream import ByteStream
 
 # Reassembler is the upstream of ByteStream
 class Reassembler:
