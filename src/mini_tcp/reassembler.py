@@ -8,23 +8,28 @@ class Reassembler:
         self.unass_size = 0  # Amount of unassembled but stored data
         self.window_size = output.capacity
         # Use deque for efficient operations at both ends
-        self.buffer = deque([0] * self.window_size, maxlen=self.window_size)
-        self.bitmap = deque([False] * self.window_size, maxlen=self.window_size)
+        # self.buffer = deque([0] * self.window_size, maxlen=self.window_size)
+        # self.bitmap = deque([False] * self.window_size, maxlen=self.window_size)
+        self.buffer = bytearray(self.window_size)
+        self.bitmap = bytearray(self.window_size)
         self.eof = False  # Flag indicating end of file
 
     def check_contiguous(self):
-        avail_size = self.window_size - self.unass_size
-        # pop first available bytes
-        tmp = deque()  # Create an empty deque
-        while len(self.bitmap) > 0 and self.bitmap[0] and avail_size > 0:
-            tmp.append(self.buffer.popleft())
-            self.bitmap.popleft()
-            avail_size -= 1
-        # push to output
-        if len(tmp) > 0:
-            self.unass_base += len(tmp)
-            self.unass_size -= len(tmp)
-            self.output.push(bytes(tmp))
+        # find contiguous segment
+        count = 0
+        for i in range(self.window_size):
+            if not self.bitmap[i]:
+                break
+            count += 1
+        
+        if count > 0:
+            self.output.push(bytes(self.buffer[:count]))
+            self.buffer[:-count] = self.buffer[count:]
+            self.buffer[-count:] = b'\x00' * count
+            self.bitmap[:-count] = self.bitmap[count:]
+            self.bitmap[-count:] = b'\x00' * count
+            self.unass_base += count
+            self.unass_size -= count
     
     def insert(self, index: int, data: bytes, eof: bool) -> None:
         data_len = len(data)
@@ -48,9 +53,11 @@ class Reassembler:
                 self.unass_size += 1
             
             # store data in buffer
-            for i in range(real_len):
-                self.buffer[offset + i] = data[i]
-                self.bitmap[offset + i] = True
+            self.buffer[offset:offset+real_len] = data[:real_len]
+            self.bitmap[offset:offset+real_len] = b'\x01' * real_len
+            # for i in range(real_len):
+            #     self.buffer[offset + i] = data[i]
+            #     self.bitmap[offset + i] = True
             self.unass_size += real_len
 
         # else, if segment overlaps with current processing position
