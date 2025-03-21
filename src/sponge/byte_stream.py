@@ -1,9 +1,11 @@
 from collections import deque
+from src.util.ringbuffer import RingBuffer
 
 # ByteStream is a buffer between network component and user application
 class ByteStream:
     def __init__(self, capacity: int):
-        self.buffer = deque(maxlen=capacity)  # Initialize a deque with maxlen
+        # self.buffer = deque(maxlen=capacity)  # Initialize a deque with maxlen
+        self.buffer = RingBuffer(capacity)
         self.capacity = capacity
         self.closed = False
         self.error = {}
@@ -17,7 +19,7 @@ class ByteStream:
             raise ValueError("Stream is closed")
         if len(data) > self.available_capacity():
             raise ValueError("Not enough capacity")
-        self.buffer.extend(data)
+        self.buffer.push(data)
         self._bytes_pushed += len(data)
         return len(data)
 
@@ -43,18 +45,16 @@ class ByteStream:
             raise ValueError("Stream is finished")
         if n > len(self.buffer):
             n = len(self.buffer)
-        return bytes([self.buffer[i] for i in range(n)])
+        return self.buffer.peek(n)
 
     def pop(self, n: int) -> bytes:
         if self.is_finished():
             raise ValueError("Stream is finished")
         if n > len(self.buffer):
             n = len(self.buffer)
-        result = bytearray(n)
-        for i in range(n):
-            result[i] = self.buffer.popleft()
+        result = self.buffer.pop(n)
         self._bytes_popped += n
-        return bytes(result)
+        return result
 
     # check if the stream is closed and fully popped
     def is_finished(self) -> bool:
