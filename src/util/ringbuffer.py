@@ -41,8 +41,10 @@ class RingBuffer:
     def pop(self, n: int) -> bytes:
         if n > self.size:
             raise ValueError("Not enough data to pop")
-        if n <= 0:
+        if n < 0:
             raise ValueError("Pop size must be positive")
+        if n == 0:
+            return bytes()
             
         result = bytearray(n)
         if self.head + n <= self.capacity:

@@ -5,7 +5,7 @@ class Reassembler:
     def __init__(self, output: ByteStream):
         self.output = output
         self.unass_base = 0  # Index of the first unassembled byte
-        self.unass_size = 0  # Amount of unassembled but stored data
+        # self.unass_size = 0  # Amount of unassembled but stored data
         self.window_size = output.capacity
         # Use deque for efficient operations at both ends
         # self.buffer = deque([0] * self.window_size, maxlen=self.window_size)
@@ -13,6 +13,10 @@ class Reassembler:
         self.buffer = bytearray(self.window_size)
         self.bitmap = bytearray(self.window_size)
         self.eof = False  # Flag indicating end of file
+
+    @property
+    def unass_size(self):
+        return self.bitmap.count(1)
 
     def check_contiguous(self):
         # find contiguous segment
@@ -29,7 +33,6 @@ class Reassembler:
             self.bitmap[:-count] = self.bitmap[count:]
             self.bitmap[-count:] = b'\x00' * count
             self.unass_base += count
-            self.unass_size -= count
     
     def insert(self, index: int, data: bytes, eof: bool) -> None:
         data_len = len(data)
@@ -50,15 +53,11 @@ class Reassembler:
             while len(self.buffer) < self.window_size:
                 self.buffer.append(0)
                 self.bitmap.append(False)
-                self.unass_size += 1
             
-            # store data in buffer
-            self.buffer[offset:offset+real_len] = data[:real_len]
-            self.bitmap[offset:offset+real_len] = b'\x01' * real_len
-            # for i in range(real_len):
-            #     self.buffer[offset + i] = data[i]
-            #     self.bitmap[offset + i] = True
-            self.unass_size += real_len
+            # store data in buffer if it is not a empty segment
+            if real_len > 0:
+                self.buffer[offset:offset+real_len] = data[:real_len]
+                self.bitmap[offset:offset+real_len] = b'\x01' * real_len
 
         # else, if segment overlaps with current processing position
         elif index + data_len > self.unass_base:
@@ -74,13 +73,11 @@ class Reassembler:
             while len(self.buffer) < self.window_size:
                 self.buffer.append(0)
                 self.bitmap.append(False)
-                self.unass_size += 1
 
             # store data in buffer
             for i in range(real_len):
                 self.buffer[i] = data[offset + i]
                 self.bitmap[i] = True
-            self.unass_size += real_len
 
         # check contiguous
         self.check_contiguous()
