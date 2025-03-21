@@ -1,6 +1,6 @@
 import unittest
-from src.sponge.byte_stream import ByteStream
-from src.sponge.reassembler import Reassembler
+from src.util.byte_stream import ByteStream
+from src.mini_tcp.reassembler import Reassembler
 import time
 class TestReassembler(unittest.TestCase):
     def setUp(self):

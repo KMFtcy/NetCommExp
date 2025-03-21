@@ -1,5 +1,5 @@
 import unittest
-from src.sponge.byte_stream import ByteStream
+from src.util.byte_stream import ByteStream
 import time
 
 class TestByteStream(unittest.TestCase):
