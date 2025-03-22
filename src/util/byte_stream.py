@@ -42,14 +42,14 @@ class ByteStream:
     # Interfaces for reader
     def peek(self, n: int) -> bytes:
         if self.is_finished():
-            raise ValueError("Stream is finished")
+            return b""
         if n > len(self.buffer):
             n = len(self.buffer)
         return self.buffer.peek(n)
 
     def pop(self, n: int) -> bytes:
         if self.is_finished():
-            raise ValueError("Stream is finished")
+            return b""
         if n > len(self.buffer):
             n = len(self.buffer)
         result = self.buffer.pop(n)
