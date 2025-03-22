@@ -41,7 +41,7 @@ class TcpSender:
             new_ack_seqno = message.ackno.unwrap(self.isn, self.ack_seqno)
             # ignore message greater than the next sequence number
             if new_ack_seqno > self.next_seqno:
-                self.ack_seqno = new_ack_seqno
+                return
 
             # if new ackno is greater than ackno, update the ackno
             if new_ack_seqno > self.ack_seqno:
