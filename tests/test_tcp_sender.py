@@ -781,5 +781,156 @@ class TestTCPSender(unittest.TestCase):
         test.expect_no_segment()
         test.expect_seqno(test.isn + 4)
 
+    def test_initial_receiver_window_respected(self):
+        """Test that initial receiver advertised window is respected"""
+        test = TCPSenderTestHarness("Initial receiver advertised window is respected")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        
+        # Receive ACK with window size 4
+        test.receive_ack(test.isn + 1, window_size=4)
+        test.expect_no_segment()
+        
+        # Try to send more than window size
+        test.push("abcdefg")
+        test.expect_message(data="abcd")
+        test.expect_no_segment()
+
+    def test_immediate_window_respected(self):
+        """Test that immediate window is respected"""
+        test = TCPSenderTestHarness("Immediate window is respected")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        
+        # Receive ACK with window size 6
+        test.receive_ack(test.isn + 1, window_size=6)
+        test.expect_no_segment()
+        
+        # Send data up to window size
+        test.push("abcdefg")
+        test.expect_message(data="abcdef")
+        test.expect_no_segment()
+
+    def test_random_window_sizes(self):
+        """Test random window sizes between MIN_WIN and MAX_WIN"""
+        MIN_WIN = 5
+        MAX_WIN = 100
+        N_REPS = 1000
+        
+        for i in range(N_REPS):
+            window_size = random.randint(MIN_WIN, MAX_WIN)
+            test = TCPSenderTestHarness(f"Window {i}")
+            
+            # Initial SYN
+            test.push()
+            test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+            
+            # Receive ACK with random window size
+            test.receive_ack(test.isn + 1, window_size=window_size)
+            test.expect_no_segment()
+            
+            # Try to send large amount of data
+            test.push("a" * (2 * N_REPS))
+            test.expect_message(payload_size=window_size)
+            test.expect_no_segment()
+
+    def test_window_growth_exploited(self):
+        """Test that window growth is properly exploited"""
+        test = TCPSenderTestHarness("Window growth is exploited")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        
+        # Receive ACK with initial window size 4
+        test.receive_ack(test.isn + 1, window_size=4)
+        test.expect_no_segment()
+        
+        # Send data
+        test.push("0123456789")
+        test.expect_message(data="0123")
+        
+        # Window grows, send more data
+        test.receive_ack(test.isn + 5, window_size=5)
+        test.push()
+        test.expect_message(data="45678")
+        test.expect_no_segment()
+
+    def test_fin_occupies_window_space(self):
+        """Test that FIN flag occupies space in window"""
+        test = TCPSenderTestHarness("FIN flag occupies space in window")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        
+        # Receive ACK with window size 7
+        test.receive_ack(test.isn + 1, window_size=7)
+        test.expect_no_segment()
+        
+        # Send data and close
+        test.push("1234567")
+        test.close()
+        test.expect_message(data="1234567")
+        test.expect_no_segment()  # window is full
+        
+        # Window opens up by 1, send FIN
+        test.receive_ack(test.isn + 8, window_size=1)
+        test.push()
+        test.expect_message(no_flags=False, fin=True, data="")
+        test.expect_no_segment()
+
+    def test_fin_occupies_window_space_part2(self):
+        """Test that FIN flag occupies space in window (part II)"""
+        test = TCPSenderTestHarness("FIN flag occupies space in window (part II)")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        
+        # Receive ACK with window size 7
+        test.receive_ack(test.isn + 1, window_size=7)
+        test.expect_no_segment()
+        
+        # Send data and close
+        test.push("1234567")
+        test.close()
+        test.expect_message(data="1234567")
+        test.expect_no_segment()  # window is full
+        
+        # Window opens up to 8, send FIN
+        test.receive_ack(test.isn + 1, window_size=8)
+        test.push()
+        test.expect_message(no_flags=False, fin=True, data="")
+        test.expect_no_segment()
+
+    def test_piggyback_fin_when_space_available(self):
+        """Test piggybacking FIN in segment when space is available"""
+        test = TCPSenderTestHarness("Piggyback FIN in segment when space is available")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        
+        # Receive ACK with window size 3
+        test.receive_ack(test.isn + 1, window_size=3)
+        test.expect_no_segment()
+        
+        # Send data and close
+        test.push("1234567")
+        test.close()
+        test.expect_message(data="123")
+        test.expect_no_segment()  # window is full
+        
+        # Window opens up, send remaining data with FIN
+        test.receive_ack(test.isn + 1, window_size=8)
+        test.push()
+        test.expect_message(no_flags=False, fin=True, data="4567")
+        test.expect_no_segment()
+
 if __name__ == '__main__':
     unittest.main()
