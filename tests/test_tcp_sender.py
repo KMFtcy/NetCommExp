@@ -407,6 +407,7 @@ class TestTCPSender(unittest.TestCase):
         test.expect_seqnos_in_flight(0)
         test.expect_seqno(test.isn + 9)
 
+    # Test Retx
     def test_retx_syn_twice_then_ack(self):
         """Test retransmitting SYN twice at the right times, then acknowledge"""
         retx_timeout = random.randint(10, 10000)
@@ -612,6 +613,173 @@ class TestTCPSender(unittest.TestCase):
         test.expect_seqnos_in_flight(0)
         
         self.assertFalse(test.has_error())
+
+    def test_three_short_writes(self):
+        """Test three consecutive short writes"""
+        test = TCPSenderTestHarness("Three short writes")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive ACK for SYN
+        test.receive_ack(test.isn + 1)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(0)
+        
+        # First write
+        test.push("ab")
+        test.expect_message(data="ab", seqno=test.isn + 1)
+        
+        # Second write
+        test.push("cd")
+        test.expect_message(data="cd", seqno=test.isn + 3)
+        
+        # Third write
+        test.push("abcd")
+        test.expect_message(data="abcd", seqno=test.isn + 5)
+        test.expect_seqno(test.isn + 9)
+        test.expect_seqnos_in_flight(8)
+
+    def test_many_short_writes_continuous_acks(self):
+        """Test many short writes with continuous acknowledgments"""
+        test = TCPSenderTestHarness("Many short writes, continuous acks")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.receive_ack(test.isn + 1)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(0)
+        
+        # Multiple rounds of writes and acks
+        max_block_size = 10
+        n_rounds = 10000
+        bytes_sent = 0
+        
+        for i in range(n_rounds):
+            # Generate random data
+            block_size = random.randint(1, max_block_size)
+            data = ''.join(chr(ord('a') + ((i + j) % 26)) for j in range(block_size))
+            
+            test.expect_seqno(test.isn + bytes_sent + 1)
+            test.push(data)
+            bytes_sent += block_size
+            test.expect_seqnos_in_flight(block_size)
+            test.expect_message(seqno=test.isn + 1 + (bytes_sent - block_size), data=data)
+            test.expect_no_segment()
+            test.receive_ack(test.isn + 1 + bytes_sent)
+
+    def test_many_short_writes_ack_at_end(self):
+        """Test many short writes with acknowledgment at the end"""
+        test = TCPSenderTestHarness("Many short writes, ack at end")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive ACK for SYN with large window
+        test.receive_ack(test.isn + 1, window_size=65000)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(0)
+        
+        # Multiple rounds of writes
+        max_block_size = 10
+        n_rounds = 1000
+        bytes_sent = 0
+        
+        for i in range(n_rounds):
+            # Generate random data
+            block_size = random.randint(1, max_block_size)
+            data = ''.join(chr(ord('a') + ((i + j) % 26)) for j in range(block_size))
+            
+            test.expect_seqno(test.isn + bytes_sent + 1)
+            test.push(data)
+            bytes_sent += block_size
+            test.expect_seqnos_in_flight(bytes_sent)
+            test.expect_message(seqno=test.isn + 1 + (bytes_sent - block_size), data=data)
+            test.expect_no_segment()
+        
+        # Final acknowledgment
+        test.expect_seqnos_in_flight(bytes_sent)
+        test.receive_ack(test.isn + 1 + bytes_sent)
+        test.expect_seqnos_in_flight(0)
+
+    def test_window_filling(self):
+        """Test filling and respecting the window size"""
+        test = TCPSenderTestHarness("Window filling")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive ACK with window size 3
+        test.receive_ack(test.isn + 1, window_size=3)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(0)
+        
+        # Try to send more than window size
+        test.push("01234567")
+        test.expect_seqnos_in_flight(3)
+        test.expect_message(data="012")
+        test.expect_no_segment()
+        test.expect_seqno(test.isn + 4)
+        
+        # Acknowledge first segment, send next
+        test.receive_ack(test.isn + 4, window_size=3)
+        test.push()
+        test.expect_seqnos_in_flight(3)
+        test.expect_message(data="345")
+        test.expect_no_segment()
+        test.expect_seqno(test.isn + 7)
+        
+        # Acknowledge second segment, send final part
+        test.receive_ack(test.isn + 7, window_size=3)
+        test.push()
+        test.expect_seqnos_in_flight(2)
+        test.expect_message(data="67")
+        test.expect_no_segment()
+        test.expect_seqno(test.isn + 9)
+        
+        # Final acknowledgment
+        test.receive_ack(test.isn + 9, window_size=3)
+        test.expect_seqnos_in_flight(0)
+        test.expect_no_segment()
+
+    def test_immediate_writes_respect_window(self):
+        """Test that immediate writes respect the window size"""
+        test = TCPSenderTestHarness("Immediate writes respect the window")
+        
+        # Initial SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive ACK with window size 3
+        test.receive_ack(test.isn + 1, window_size=3)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(0)
+        
+        # First write fits in window
+        test.push("01")
+        test.expect_seqnos_in_flight(2)
+        test.expect_message(data="01")
+        test.expect_no_segment()
+        test.expect_seqno(test.isn + 3)
+        
+        # Second write partially fits in window
+        test.push("23")
+        test.expect_seqnos_in_flight(3)
+        test.expect_message(data="2")
+        test.expect_no_segment()
+        test.expect_seqno(test.isn + 4)
 
 if __name__ == '__main__':
     unittest.main()
