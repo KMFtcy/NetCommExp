@@ -101,7 +101,7 @@ class TcpSender:
 
             # update the next sequence number,
             # if the FIN has been addedd to next_seqno, don't add it again
-            self.next_seqno += min(self.next_seqno + msg.squence_length(), self.fin_seqno)
+            self.next_seqno = min(self.next_seqno + msg.squence_length(), self.fin_seqno)
 
             # if FIN break the loop
             if msg.FIN:

@@ -326,5 +326,77 @@ class TestTCPSender(unittest.TestCase):
 
         self.assertFalse(test.has_error())
 
+    # Test SYN
+    def test_syn_sent_after_first_push(self):
+        """Test that SYN is sent after first push"""
+        test = TCPSenderTestHarness("SYN sent after first push")
+        
+        # Initial push should trigger SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        self.assertFalse(test.has_error())
+
+    def test_syn_acked(self):
+        """Test SYN being acknowledged"""
+        test = TCPSenderTestHarness("SYN acked test")
+        
+        # Send SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive ACK for SYN
+        test.receive_ack(test.isn + 1)
+        test.expect_no_segment()
+        test.expect_seqnos_in_flight(0)
+
+    def test_syn_wrong_ack(self):
+        """Test SYN receiving wrong acknowledgment"""
+        test = TCPSenderTestHarness("SYN -> wrong ack test")
+        
+        # Send SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive wrong ACK
+        test.receive_ack(test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_no_segment()
+        test.expect_seqnos_in_flight(1)
+
+    def test_syn_acked_with_data(self):
+        """Test sending data after SYN is acknowledged"""
+        test = TCPSenderTestHarness("SYN acked, data")
+        
+        # Send SYN
+        test.push()
+        test.expect_message(no_flags=False, syn=True, payload_size=0, seqno=test.isn)
+        test.expect_seqno(test.isn + 1)
+        test.expect_seqnos_in_flight(1)
+        
+        # Receive ACK for SYN
+        test.receive_ack(test.isn + 1)
+        test.expect_no_segment()
+        test.expect_seqnos_in_flight(0)
+        
+        # Send data
+        test.push("abcdefgh")
+        test.tick(1)
+        test.expect_message(seqno=test.isn + 1, data="abcdefgh")
+        test.expect_seqno(test.isn + 9)  # ISN + 1 (SYN) + 8 (data)
+        test.expect_seqnos_in_flight(8)
+        
+        # Receive ACK for data
+        test.receive_ack(test.isn + 9)
+        test.expect_no_segment()
+        test.expect_seqnos_in_flight(0)
+        test.expect_seqno(test.isn + 9)
+
 if __name__ == '__main__':
     unittest.main()
