@@ -15,21 +15,20 @@ class TCPSenderTestHarness:
         self.segments_sent = []
         self.max_retx_exceeded = False
         
-        # Mock transmit function to capture sent segments
         def mock_transmit(segment: TCPSenderMessage) -> int:
             self.segments_sent.append(segment)
             return len(segment.payload) if segment.payload else 0
-            
-        from src.mini_tcp.transmit_func import set_transmit_func_call
-        set_transmit_func_call(mock_transmit)
-    
+
+        self.mock_transmit = mock_transmit
+
     def push(self, data: str = "", close: bool = False) -> None:
         """Push data to the sender's input stream"""
+        # Mock transmit function to capture sent segments
         if data:
             self.input.push(data.encode())
         if close:
             self.input.close()
-        self.sender.push()
+        self.sender.push(self.mock_transmit)
     
     def expect_message(self, *, no_flags: bool = True, syn: bool = False, fin: bool = False,
                       data: str = "", payload_size: int = None, seqno: Wrap32 = None) -> None:
@@ -86,11 +85,11 @@ class TCPSenderTestHarness:
     def close(self) -> None:
         """Close the input stream"""
         self.input.close()
-        self.sender.push()
+        self.sender.push(self.mock_transmit)
     
     def tick(self, ms: int, expect_max_retx_exceeded: bool = False) -> None:
         """Advance time by the specified number of milliseconds"""
-        self.sender.tick(ms)
+        self.sender.tick(ms, self.mock_transmit)
         if expect_max_retx_exceeded:
             assert self.sender.retrans_count > MAX_RETX_ATTEMPTS, \
                 f"{self.test_name}: Expected max retransmissions exceeded but got {self.sender.retrans_count} retransmissions"

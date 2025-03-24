@@ -1,9 +1,9 @@
-from src.mini_tcp.transmit_func import transmit
 from src.util.byte_stream import ByteStream
 from src.mini_tcp.wrapping_intergers import Wrap32
 from src.mini_tcp.tcp_message import TCPReceiverMessage, TCPSenderMessage
 from collections import deque
 from src.mini_tcp.tcp_config import MAX_PAYLOAD_SIZE, MAX_SEQNO
+from typing import Callable
 
 class TcpSender:
     def __init__(self, input_stream: ByteStream, isn: Wrap32, initial_RTO: int):
@@ -22,7 +22,6 @@ class TcpSender:
         self.syn_sent = False
         self.fin_sent = False
         self.recv_zero_window_size = False # we need to probe if we receive a zero window size
-
 
     def receive(self, message: TCPReceiverMessage):
         # if RST is set, set the stream error
@@ -61,7 +60,8 @@ class TcpSender:
                 self.window_size = new_ack_seqno + message.window_size - self.ack_seqno
 
 
-    def push(self):
+    # push data to the outbound stream as much as possible
+    def push(self, transmit_func: Callable[[TCPSenderMessage], None]):
         while self.window_size > 0 and self.next_seqno < self.ack_seqno + self.window_size:
             msg = TCPSenderMessage()
 
@@ -96,7 +96,7 @@ class TcpSender:
                 break
 
             # send a message
-            transmit(msg)
+            transmit_func(msg)
             self.outstanding_data.append(msg)
 
             # update the next sequence number,
@@ -107,7 +107,7 @@ class TcpSender:
             if msg.FIN:
                 break
 
-    def tick(self, ms_since_last_tick: int):
+    def tick(self, ms_since_last_tick: int, transmit_func: Callable[[TCPSenderMessage], None]):
         # when queue is empty, reset the timer and return
         if len(self.outstanding_data) == 0:
             self.reset_timer()
@@ -118,11 +118,11 @@ class TcpSender:
         if self.last_sent_time >= self.RTO:
             # if window size in receiver is 0, we need to probe
             if self.recv_zero_window_size:
-                transmit(self.outstanding_data[0])
+                transmit_func(self.outstanding_data[0])
                 self.reset_timer()
                 return
             # else send the timeout message and update the RTO
-            transmit(self.outstanding_data[0])
+            transmit_func(self.outstanding_data[0])
             self.last_sent_time = 0
             self.retrans_count += 1
             self.RTO *= 2
