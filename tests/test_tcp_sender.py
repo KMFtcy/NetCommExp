@@ -1,6 +1,6 @@
 import unittest
 import random
-from src.mini_tcp.tcp_sender import TcpSender
+from src.mini_tcp.tcp_sender import TCPSender
 from src.mini_tcp.tcp_message import TCPReceiverMessage, TCPSenderMessage
 from src.mini_tcp.wrapping_intergers import Wrap32
 from src.util.byte_stream import ByteStream
@@ -11,7 +11,7 @@ class TCPSenderTestHarness:
         self.test_name = test_name
         self.input = ByteStream(capacity)
         self.isn = Wrap32(random.randint(0, 0xFFFFFFFF))
-        self.sender = TcpSender(self.input, self.isn, retx_timeout)
+        self.sender = TCPSender(self.input, self.isn, retx_timeout)
         self.segments_sent = []
         self.max_retx_exceeded = False
         

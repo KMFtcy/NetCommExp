@@ -5,7 +5,7 @@ from collections import deque
 from src.mini_tcp.tcp_config import MAX_PAYLOAD_SIZE, MAX_SEQNO
 from typing import Callable
 
-class TcpSender:
+class TCPSender:
     def __init__(self, input_stream: ByteStream, isn: Wrap32, initial_RTO: int):
         self.input_stream = input_stream
         self.isn = isn
