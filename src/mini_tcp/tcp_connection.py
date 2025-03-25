@@ -44,31 +44,6 @@ class TCPConnection:
 
         return True
 
-
-    ###########################################
-    # Output Stream Interface (Writing Data)  #
-    ###########################################
-
-    # return the number of bytes that can be written to the byte stream
-    def remaining_outbound_capacity(self) -> int:
-        pass
-
-    # shut down the outbound byte stream, but still allows reading incoming data
-    def close_input_stream(self):
-        pass
-
-    ###########################################
-    # Input Stream Interface (Reading Data)   #
-    ###########################################
-
-    # Output interface as reader
-    def inbound_stream(self) -> ByteStream:
-        pass
-
-    ###########################################
-    # Network Event Handlers                  #
-    ###########################################
-
     # called when a new segment has been received from the network
     def receive(self, msg: TCPMessage, transmit_func: Callable[[TCPMessage], None]):
 
@@ -95,9 +70,6 @@ class TCPConnection:
     # called when a timer event occurs periodically
     def tick(self, ms_since_last_tick: int, transmit_func: Callable[[TCPSenderMessage], None]):
         self.sender.tick(ms_since_last_tick, self.make_transmit_func(transmit_func))
-
-    # def segments_out(self) -> int:
-    #     pass
 
     # Is the connection still alive?
     @property
