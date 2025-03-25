@@ -98,8 +98,102 @@ class TestTCPConnection(unittest.TestCase):
         self.assertTrue(test.connection.active())
 
     def test_connect_syn_with_data_as_client(self):
-        pass
+        """Test sending data along with the third handshake (client side)"""
+        test = TCPConnectionTestHarness("Connect with data", isn=Wrap32(45535))
+        
+        # Initial SYN
+        test.push()
+        test.expect_data(syn=True, seqno=Wrap32(45535))
+        test.expect_no_data()
+        
+        # Push data to outbound stream before receiving SYN+ACK
+        test.push("Hello, TCP!")
+        test.expect_no_data()  # Should not send data yet, waiting for SYN+ACK
+        
+        # Receive SYN+ACK
+        test.receive(seqno=Wrap32(65535), syn=True, ackno=Wrap32(45536))
+        
+        # Should now send ACK with the buffered data
+        test.expect_data(
+            seqno=Wrap32(45536),  # Initial seqno + 1 (SYN)
+            ackno=Wrap32(65536),  # Their seqno + 1 (SYN)
+            data="Hello, TCP!"
+        )
+        test.expect_no_data()
+        
+        # Receive ACK for our data
+        test.receive(
+            seqno=Wrap32(65536),  # Their initial seqno + 1 (SYN)
+            ackno=Wrap32(45546)   # Our seqno + 1 (SYN) + 10 (data length)
+        )
+        test.expect_no_data()
+        
+        self.assertTrue(test.connection.active())
+
+    def test_basic_connect_as_server(self):
+        """Test connection establishment as server (passive open)"""
+        test = TCPConnectionTestHarness("Connect as server", isn=Wrap32(45535))
+        
+        # Receive SYN from client
+        test.receive(
+            seqno=Wrap32(65535),  # Client's ISN
+            syn=True
+        )
+        
+        # Should respond with SYN+ACK
+        test.expect_data(
+            syn=True,
+            seqno=Wrap32(45535),  # Our ISN
+            ackno=Wrap32(65536)   # Client's ISN + 1
+        )
+        test.expect_no_data()
+        
+        # Receive ACK from client
+        test.receive(
+            seqno=Wrap32(65536),  # Client's ISN + 1
+            ackno=Wrap32(45536)   # Our ISN + 1
+        )
+        test.expect_no_data()
+        
+        self.assertTrue(test.connection.active())
     
+    def test_connect_as_server_with_data(self):
+        """Test connection establishment as server with data in final ACK"""
+        test = TCPConnectionTestHarness("Connect as server with data", isn=Wrap32(45535))
+        
+        # Receive SYN from client
+        test.receive(
+            seqno=Wrap32(65535),  # Client's ISN
+            syn=True
+        )
+        
+        # Should respond with SYN+ACK
+        test.expect_data(
+            syn=True,
+            seqno=Wrap32(45535),  # Our ISN
+            ackno=Wrap32(65536)   # Client's ISN + 1
+        )
+        test.expect_no_data()
+        
+        # Receive ACK with data from client
+        test.receive(
+            seqno=Wrap32(65536),  # Client's ISN + 1
+            ackno=Wrap32(45536),  # Our ISN + 1
+            data="Hello, Server!"
+        )
+        
+        # Should acknowledge the data
+        test.expect_data(
+            seqno=Wrap32(45536),  # Our ISN + 1
+            ackno=Wrap32(65550)   # Client's ISN + 1 + data length (14)
+        )
+        test.expect_no_data()
+        
+        # Verify the received data
+        received_data = test.connection.inbound_stream.pop(14)
+        self.assertEqual(received_data.decode(), "Hello, Server!")
+        self.assertTrue(test.connection.active())
+
     # def test_custom_window_size(self):
     #     """Test connection with custom window size"""
     #     custom_window = 1000
