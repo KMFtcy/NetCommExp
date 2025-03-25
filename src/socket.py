@@ -48,6 +48,19 @@ class Socket(ABC):
         pass
 
     @abstractmethod
+    def recv(self, size: int) -> bytes:
+        """Receive a message from the socket
+        
+        Args:
+            size: Maximum number of bytes to receive
+            
+        Returns:
+            Received bytes
+        """
+        pass
+    
+
+    @abstractmethod
     def close(self) -> None:
         """Terminate connection and free resources"""
         pass
