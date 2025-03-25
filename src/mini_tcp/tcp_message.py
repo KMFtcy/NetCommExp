@@ -24,3 +24,8 @@ class TCPSenderMessage:
         if self.FIN:
             length += 1
         return length
+
+@dataclass
+class TCPMessage:
+    sender_message: TCPSenderMessage
+    receiver_message: TCPReceiverMessage
