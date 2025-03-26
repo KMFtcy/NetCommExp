@@ -8,3 +8,17 @@ Run all tests in the tests directory.
 ```bash
 python -m unittest discover -s tests
 ```
+
+## Examples
+
+Run the example program.
+
+Run the server.
+```bash
+python examples/mini_tcp_message_transmit.py server
+```
+
+In another terminal, run the client.
+```bash
+python examples/mini_tcp_message_transmit.py client
+```
