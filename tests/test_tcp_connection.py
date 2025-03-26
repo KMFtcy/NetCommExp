@@ -11,7 +11,7 @@ class TCPConnectionTestHarness:
         config = TCPConfig(
             window_size=window_size,
             rto=rto,
-            isn=isn
+            isn=isn.raw_value
         )
         self.connection = TCPConnection(config)
         self.segments_received = []

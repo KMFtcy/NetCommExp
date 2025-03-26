@@ -17,9 +17,9 @@ class TCPConnection:
         self.config = config
         self.outbound_stream = ByteStream(config.window_size)
         self.inbound_stream = ByteStream(config.window_size)
-        isn = Wrap32(0)
-        if config.isn:
-            isn = config.isn
+        isn = Wrap32(config.isn)
+        # if config.isn:
+        #     isn = config.isn
         self.sender = TCPSender(self.outbound_stream, isn, config.rto)
         self.receiver = TCPReceiver(Reassembler(self.inbound_stream))
         self.need_send = False # handle when need to send empty message, e.g. when receive SYN+ACK

@@ -18,4 +18,4 @@ class TCPConfig:
     rto: int = MAX_RTO
     rto_scale: int = RTO_SCALE
     initial_rto: int = INITIAL_RTO
-    isn: Wrap32 = Wrap32(0)
+    isn: int = 0
