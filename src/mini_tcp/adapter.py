@@ -2,11 +2,15 @@ import socket
 from typing import Optional, Tuple
 from src.mini_tcp.tcp_message import TCPMessage, TCPSenderMessage, TCPReceiverMessage
 from src.mini_tcp.wrapping_intergers import Wrap32
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 class TCPOverUDPAdapter:
-    def __init__(self, udp_socket: socket.socket):
+    def __init__(self, udp_socket: socket.socket, debug: bool = False):
         self.socket = udp_socket
         self.MAX_DATAGRAM_SIZE = 1500 # in bytes
+        self.debug = debug
 
     def serialize_tcp_message(self, message: TCPMessage) -> bytes:
         """Serialize TCPMessage into bytes"""
@@ -39,11 +43,11 @@ class TCPOverUDPAdapter:
         receiver_flags = data[13]
 
         # Parse payload
-        payload = data[14:14+payload_len] if payload_len > 0 else None
+        payload = data[14:14+payload_len] if payload_len > 0 else b''
 
         # Create sender message
         sender_message = TCPSenderMessage(
-            seqno=Wrap32(seqno) if seqno != 0 else None,
+            seqno=Wrap32(seqno),
             payload=payload,
             SYN=bool(sender_flags & 0b100),
             FIN=bool(sender_flags & 0b010),
@@ -59,7 +63,12 @@ class TCPOverUDPAdapter:
 
         return TCPMessage(sender_message, receiver_message)
 
+    def bind(self, address: Tuple[str, int]):
+        self.socket.bind(address)
+
     def write(self, message: TCPMessage, address: Tuple[str, int]) -> int:
+        if self.debug:
+            print(f"Writing message to {address}: {message}")
         """Write TCPMessage to UDP socket"""
         data = self.serialize_tcp_message(message)
         return self.socket.sendto(data, address)
@@ -69,6 +78,8 @@ class TCPOverUDPAdapter:
         try:
             data, addr = self.socket.recvfrom(self.MAX_DATAGRAM_SIZE)
             message = self.deserialize_tcp_message(data)
+            if self.debug:
+                print(f"Received message from {addr}: {message}")
             return message, addr
         except socket.error:
             return None, None
