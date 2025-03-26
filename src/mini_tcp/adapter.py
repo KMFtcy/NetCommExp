@@ -11,6 +11,8 @@ class TCPOverUDPAdapter:
         self.socket = udp_socket
         self.MAX_DATAGRAM_SIZE = 1500 # in bytes
         self.debug = debug
+        self.try_to_close = False
+        self.udp_recv_on = False # if the udp socket calls recv method, it will not end even if the socket is closed. This flag is used to check if the recv method is on.
 
     def serialize_tcp_message(self, message: TCPMessage) -> bytes:
         """Serialize TCPMessage into bytes"""
@@ -67,7 +69,13 @@ class TCPOverUDPAdapter:
         self.socket.bind(address)
 
     def close(self):
+        self.try_to_close = True
+        # if the udp socket calls recv method, send a empty packet to shut down the recv method
+        if self.udp_recv_on:
+            address = self.socket.getsockname()
+            self.socket.sendto(b'', address)
         self.socket.close()
+
 
     def sendto(self, message: TCPMessage, address: Tuple[str, int]) -> int:
         if self.debug:
@@ -79,7 +87,11 @@ class TCPOverUDPAdapter:
     def read(self) -> Tuple[Optional[TCPMessage], Optional[Tuple[str, int]]]:
         """Read TCPMessage from UDP socket"""
         try:
+            if self.try_to_close:
+                return None, None
+            self.udp_recv_on = True
             data, addr = self.socket.recvfrom(self.MAX_DATAGRAM_SIZE)
+            self.udp_recv_on = False
             message = self.deserialize_tcp_message(data)
             if self.debug:
                 print(f"Received message from {addr}: {message}")

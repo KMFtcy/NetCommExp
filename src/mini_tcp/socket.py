@@ -116,4 +116,5 @@ class MiniTCPSocket(Socket):
     
     # close the socket
     def close(self):
+        self.running = False
         self.adapter.close()
