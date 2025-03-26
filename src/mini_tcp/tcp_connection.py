@@ -68,8 +68,11 @@ class TCPConnection:
 
     
     # called when a timer event occurs periodically
-    def tick(self, ms_since_last_tick: int, transmit_func: Callable[[TCPSenderMessage], None]):
-        self.sender.tick(ms_since_last_tick, self.make_transmit_func(transmit_func))
+    def tick(self, ms_since_last_tick: int, transmit_func: Callable[[TCPMessage], None]):
+        try:
+            self.sender.tick(ms_since_last_tick, lambda msg: transmit_handler(self, msg, transmit_func))
+        except Exception as e:
+            print(f"Error in TCPConnection tick: {e}")
 
     # Is the connection still alive?
     @property

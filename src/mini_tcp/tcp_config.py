@@ -15,7 +15,7 @@ MAX_RETRANSMISSION_TIME = 60000
 class TCPConfig:
     payload_size: int = MAX_PAYLOAD_SIZE
     window_size: int = MAX_WINDOW_SIZE
-    rto: int = MAX_RTO
+    rto: int = INITIAL_RTO
     rto_scale: int = RTO_SCALE
     initial_rto: int = INITIAL_RTO
     isn: int = 0

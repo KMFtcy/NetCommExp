@@ -17,17 +17,13 @@ class MiniTCPSocket(Socket):
         self.data_available = threading.Event()
         self.dst_address = None
 
-    async def sending_task(self):
-        while self.running:
-            await asyncio.sleep(1)
-            print("Sending...")
-
     async def receiving_task(self):
         while self.running:
             try:
                 message, addr = await asyncio.to_thread(self.adapter.read)
                 if message:
                     self.tcp_connection.receive(message, lambda x: self.adapter.sendto(x, addr))
+                    self.data_available.set()
             except Exception as e:
                 print(f"Error in receiving task: {e}")
                 await asyncio.sleep(1)
@@ -35,7 +31,7 @@ class MiniTCPSocket(Socket):
     async def ticking_task(self):
         while self.running:
             await asyncio.sleep(self.config.rto / 1000)
-            self.tcp_connection.tick(self.config.rto / 1000)
+            self.tcp_connection.tick(self.config.rto / 1000, lambda x: self.adapter.sendto(x, self.dst_address))
 
     def start_loop(self):
         """Start the event loop in a separate thread."""
@@ -45,7 +41,6 @@ class MiniTCPSocket(Socket):
             async def run_tasks():
                 try:
                     await asyncio.gather(
-                        self.sending_task(),
                         self.receiving_task(),
                         self.ticking_task()
                     )
@@ -121,5 +116,4 @@ class MiniTCPSocket(Socket):
     
     # close the socket
     def close(self):
-        pass
-    
+        self.adapter.close()

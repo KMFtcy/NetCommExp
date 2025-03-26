@@ -66,6 +66,9 @@ class TCPOverUDPAdapter:
     def bind(self, address: Tuple[str, int]):
         self.socket.bind(address)
 
+    def close(self):
+        self.socket.close()
+
     def sendto(self, message: TCPMessage, address: Tuple[str, int]) -> int:
         if self.debug:
             print(f"Writing message to {address}: {message}")
