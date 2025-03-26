@@ -3,6 +3,7 @@ from src.mini_tcp.tcp_connection import TCPConnection
 from src.mini_tcp.tcp_config import TCPConfig
 import threading
 import time
+import asyncio
 
 # MiniTCP socket bridges the os system and our implementation of the TCP connection. Meanwhile, it provides a socket interface for the application to use.
 
@@ -14,24 +15,56 @@ class MiniTCPSocket(Socket):
         self.loop_thread = None
         self.running = False
         self.data_available = threading.Event()
+        self.dst_address = None
+
+    async def sending_task(self):
+        while self.running:
+            await asyncio.sleep(1)
+            print("Sending...")
+
+    async def receiving_task(self):
+        while self.running:
+            try:
+                message, addr = await asyncio.to_thread(self.adapter.read)
+                if message:
+                    self.tcp_connection.receive(message, lambda x: self.adapter.sendto(x, addr))
+            except Exception as e:
+                print(f"Error in receiving task: {e}")
+                await asyncio.sleep(1)
+
+    async def ticking_task(self):
+        while self.running:
+            await asyncio.sleep(self.config.rto / 1000)
+            self.tcp_connection.tick(self.config.rto / 1000)
 
     def start_loop(self):
-        def loop():
+        """Start the event loop in a separate thread."""
+        if not self.running:
             self.running = True
-            while self.running:
+            
+            async def run_tasks():
                 try:
-                    message, _ = self.adapter.read()
-                    if message:
-                        self.tcp_connection.receive(message)
-                        # Set the event when new data is available
-                        if self.tcp_connection.inbound_stream.bytes_buffered > 0:
-                            self.data_available.set()
+                    await asyncio.gather(
+                        self.sending_task(),
+                        self.receiving_task(),
+                        self.ticking_task()
+                    )
                 except Exception as e:
-                    print(f"Error in loop: {e}")
-                    break
-
-        self.loop_thread = threading.Thread(target=loop, daemon=True)
-        self.loop_thread.start()
+                    print(f"Error in tasks: {e}")
+                finally:
+                    self.running = False
+            
+            def run_loop():
+                try:
+                    asyncio.run(run_tasks())
+                except Exception as e:
+                    print(f"Error in event loop: {e}")
+                finally:
+                    self.running = False
+            
+            self.loop_thread = threading.Thread(target=run_loop)
+            self.loop_thread.daemon = True
+            self.loop_thread.start()
 
     def wait_until_closed(self):
         if self.loop_thread:
@@ -39,9 +72,10 @@ class MiniTCPSocket(Socket):
             self.loop_thread.join()
 
     def connect(self, address):
-        self.tcp_connection.push(lambda x: self.adapter.write(x, address))
+        self.dst_address = address
+        self.tcp_connection.push(lambda x: self.adapter.sendto(x, address))
         message, addr = self.adapter.read()
-        self.tcp_connection.receive(message, lambda x: self.adapter.write(x, addr))
+        self.tcp_connection.receive(message, lambda x: self.adapter.sendto(x, addr))
         self.start_loop()
         return
 
@@ -51,7 +85,8 @@ class MiniTCPSocket(Socket):
 
     def accept(self):
         message, addr = self.adapter.read()
-        self.tcp_connection.receive(message, lambda x: self.adapter.write(x, addr))
+        self.dst_address = addr
+        self.tcp_connection.receive(message, lambda x: self.adapter.sendto(x, addr))
         self.start_loop()  # Start the loop thread after accepting connection
         return self, addr
 
@@ -65,9 +100,10 @@ class MiniTCPSocket(Socket):
         bytes_sent = 0
         while bytes_sent <= len(data):
             bytes_can_send = min(outbound_stream.available_capacity(), len(data) - bytes_sent)
+            print(f"Sending {bytes_can_send} bytes to {self.dst_address}")
             outbound_stream.push(data[bytes_sent:bytes_sent + bytes_can_send])
             bytes_sent += bytes_can_send
-            self.tcp_connection.push()
+            self.tcp_connection.push(lambda x: self.adapter.sendto(x, self.dst_address))
 
     # receive data from the socket at most size bytes
     def recv(self, size: int):
@@ -87,6 +123,4 @@ class MiniTCPSocket(Socket):
     # close the socket
     def close(self):
         pass
-    
-    
     
