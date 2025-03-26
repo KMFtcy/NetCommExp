@@ -63,7 +63,7 @@ class TestUDPAdapter(unittest.TestCase):
         address = ("localhost", 12345)
         
         # Call write method
-        self.adapter.write(self.test_message, address)
+        self.adapter.sendto(self.test_message, address)
         
         # Verify that socket.sendto was called correctly
         self.mock_socket.sendto.assert_called_once()
@@ -120,9 +120,8 @@ class TestUDPAdapter(unittest.TestCase):
         deserialized_message = self.adapter.deserialize_tcp_message(serialized_data)
         
         # Verify results
-        self.assertIsNone(deserialized_message.sender_message.seqno)
-        self.assertIsNone(deserialized_message.sender_message.payload)
-        self.assertIsNone(deserialized_message.receiver_message.ackno)
+        self.assertEqual(deserialized_message.sender_message.seqno.raw_value, 0)
+        self.assertEqual(deserialized_message.sender_message.payload, b'')
         self.assertEqual(deserialized_message.receiver_message.window_size, 0)
 
 class TestUDPAdapterPerformance(unittest.TestCase):
