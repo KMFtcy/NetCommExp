@@ -222,5 +222,73 @@ class TestTCPReceiver(unittest.TestCase):
         test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + 1), payload=b"abcdefgh")))
         test.expect_state(ackno=Wrap32(isn + 9), data=b"abcdefgh", bytes_pending=0, bytes_pushed=8)
 
+    def test_transmit_1(self):
+        test = TCPReceiverTestHarness("transmit 1", 4000)
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(0), payload=b"", SYN=True)))
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(1), payload=b"abcd")))
+        test.expect_state(ackno=Wrap32(5), data=b"abcd", bytes_pending=0, bytes_pushed=4)
+
+    def test_transmit_2(self):
+        isn = 384678
+        test = TCPReceiverTestHarness("transmit 2", 4000)
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn), payload=b"", SYN=True)))
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + 1), payload=b"abcd")))
+        test.expect_state(ackno=Wrap32(isn + 5), bytes_pending=0, bytes_pushed=4)
+        test.expect_data(b"abcd")
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + 5), payload=b"efgh")))
+        test.expect_state(ackno=Wrap32(isn + 9), bytes_pending=0, bytes_pushed=8)
+        test.expect_data(b"efgh")
+
+    def test_transmit_3(self):
+        isn = 5
+        test = TCPReceiverTestHarness("transmit 3", 4000)
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn), payload=b"", SYN=True)))
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + 1), payload=b"abcd")))
+        test.expect_state(ackno=Wrap32(isn + 5), bytes_pending=0, bytes_pushed=4)
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + 5), payload=b"efgh")))
+        test.expect_state(ackno=Wrap32(isn + 9), bytes_pending=0, bytes_pushed=8)
+        test.expect_data(b"abcdefgh")
+
+    def test_transmit_4(self):
+        """Many (arrive/read)s"""
+        test = TCPReceiverTestHarness("transmit 4", 4000)
+        max_block_size = 10
+        n_rounds = 10000
+        isn = 893472
+        bytes_sent = 0
+        
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn), payload=b"", SYN=True)))
+        
+        for i in range(n_rounds):
+            block_size = random.randint(1, max_block_size)
+            data = ''.join(chr(ord('a') + ((i + j) % 26)) for j in range(block_size))
+            
+            test.expect_state(ackno=Wrap32(isn + bytes_sent + 1), bytes_pushed=bytes_sent)
+            test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + bytes_sent + 1), payload=data.encode())))
+            bytes_sent += block_size
+            test.expect_data(data.encode())
+
+    def test_transmit_5(self):
+        """Many arrives, one read"""
+        max_block_size = 10
+        n_rounds = 100
+        test = TCPReceiverTestHarness("transmit 5", max_block_size * n_rounds)
+        isn = 238
+        bytes_sent = 0
+        
+        test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn), payload=b"", SYN=True)))
+        
+        all_data = ""
+        for i in range(n_rounds):
+            block_size = random.randint(1, max_block_size)
+            data = ''.join(chr(ord('a') + ((i + j) % 26)) for j in range(block_size))
+            all_data += data
+            
+            test.expect_state(ackno=Wrap32(isn + bytes_sent + 1), bytes_pushed=bytes_sent)
+            test.execute(lambda r: r.receive(TCPSenderMessage(seqno=Wrap32(isn + bytes_sent + 1), payload=data.encode())))
+            bytes_sent += block_size
+            
+        test.expect_data(all_data.encode())
+
 if __name__ == '__main__':
     unittest.main() 
