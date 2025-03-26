@@ -98,9 +98,8 @@ class MiniTCPSocket(Socket):
     def send(self, data: bytes):
         outbound_stream = self.tcp_connection.outbound_stream
         bytes_sent = 0
-        while bytes_sent <= len(data):
+        while bytes_sent < len(data):
             bytes_can_send = min(outbound_stream.available_capacity(), len(data) - bytes_sent)
-            print(f"Sending {bytes_can_send} bytes to {self.dst_address}")
             outbound_stream.push(data[bytes_sent:bytes_sent + bytes_can_send])
             bytes_sent += bytes_can_send
             self.tcp_connection.push(lambda x: self.adapter.sendto(x, self.dst_address))
