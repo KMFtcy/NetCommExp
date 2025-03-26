@@ -14,12 +14,12 @@ from src.mini_tcp.tcp_message import TCPMessage, TCPSenderMessage, TCPReceiverMe
 from src.mini_tcp.wrapping_intergers import Wrap32
 from src.mini_tcp.socket import MiniTCPSocket
 
-def run_server(host: str, port: int):
+def run_server(host: str, port: int, debug: bool):
     """Run the server mode"""
     print(f"Starting server on {host}:{port}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     # adapter = TCPOverUDPAdapter(sock)
-    adapter = TCPOverUDPAdapter(sock, debug=True)
+    adapter = TCPOverUDPAdapter(sock, debug=debug)
     server_socket = MiniTCPSocket(adapter)
     server_socket.bind((host, port))
     server_socket.listen()
@@ -43,13 +43,13 @@ def run_server(host: str, port: int):
     finally:
         client_socket.close()
 
-def run_client(server_host: str, server_port: int, message: str):
+def run_client(server_host: str, server_port: int, message: str, debug: bool):
     """Run the client mode"""
     print(f"Starting client, connecting to {server_host}:{server_port}")
     
     # Create socket with random port
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    adapter = TCPOverUDPAdapter(sock, debug=True)
+    adapter = TCPOverUDPAdapter(sock, debug=debug)
     client_socket = MiniTCPSocket(adapter)
     client_socket.bind(('', 0))  # Bind to random port
     
@@ -89,13 +89,14 @@ def main():
     parser.add_argument('--host', default='localhost', help='Host address (default: localhost)')
     parser.add_argument('--port', type=int, default=12345, help='Port number (default: 12345)')
     parser.add_argument('--message', default='Hello, Server!', help='Message to send (client mode only)')
+    parser.add_argument('--debug', default=False, action='store_true', help='Enable debug mode')
     
     args = parser.parse_args()
     
     if args.mode == 'server':
-        run_server(args.host, args.port)
+        run_server(args.host, args.port, args.debug)
     else:
-        run_client(args.host, args.port, args.message)
+        run_client(args.host, args.port, args.message, args.debug)
 
 if __name__ == '__main__':
     main() 
