@@ -13,6 +13,12 @@ class ReassemblerTestHarness:
         """Insert data into the reassembler"""
         self.reassembler.insert(first_index, data.encode(), is_last)
 
+    def expect_bytes_pushed(self, expected: int) -> None:
+        """Verify the number of bytes pushed in the output stream"""
+        actual = self.output._bytes_pushed
+        assert actual == expected, \
+            f"{self.test_name}: Expected {expected} bytes pushed but got {actual}"
+
     def expect_bytes_buffered(self, expected: int) -> None:
         """Verify the number of bytes buffered in the output stream"""
         actual = self.output.bytes_buffered()
@@ -883,6 +889,95 @@ class TestReassembler(unittest.TestCase):
         test.expect_bytes_pending(0)
         test.expect_bytes_buffered(27)
         test.expect_output("I am sentient, hello world!")
+        
+        self.assertFalse(test.expect_error())
+
+    def test_sequential_1(self):
+        """Test sequential insertion with immediate reading"""
+        test = ReassemblerTestHarness("seq 1", capacity=65000)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        test.insert(4, "efgh")
+        test.expect_bytes_buffered(4)
+        test.expect_output("efgh")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_sequential_2(self):
+        """Test sequential insertion with delayed reading"""
+        test = ReassemblerTestHarness("seq 2", capacity=65000)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(4)
+        test.expect_finished(False)
+        
+        test.insert(4, "efgh")
+        test.expect_bytes_buffered(8)
+        test.expect_output("abcdefgh")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_sequential_3(self):
+        """Test multiple sequential insertions with final reading"""
+        test = ReassemblerTestHarness("seq 3", capacity=65000)
+        
+        expected_output = ""
+        for i in range(100):
+            test.expect_bytes_buffered(4 * i)
+            test.insert(4 * i, "abcd")
+            test.expect_finished(False)
+            expected_output += "abcd"
+        
+        test.expect_output(expected_output)
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_sequential_4(self):
+        """Test multiple sequential insertions with immediate reading"""
+        test = ReassemblerTestHarness("seq 4", capacity=65000)
+        
+        for i in range(100):
+            print(i)
+            test.expect_bytes_pushed(4 * i)
+            test.insert(4 * i, "abcd")
+            test.expect_finished(False)
+            test.expect_output("abcd")
+        
+        self.assertFalse(test.expect_error())
+
+    def test_zero_valued_byte(self):
+        """Test handling of zero-valued bytes in substrings"""
+        test = ReassemblerTestHarness("zero-valued byte in substring", capacity=16)
+        
+        # Create bytes objects with specific byte values
+        data1 = bytes([0x30, 0x0d, 0x62, 0x00, 0x61, 0x00, 0x00])
+        test.insert(9, data1.decode('latin1'))  # Use latin1 to preserve byte values
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        data2 = bytes([0x0d, 0x0a, 0x63, 0x61, 0x0a, 0x66])
+        test.insert(0, data2.decode('latin1'))
+        test.expect_bytes_buffered(6)
+        
+        data3 = bytes([0x0d, 0x0a, 0x63, 0x61, 0x0a, 0x66, 0x65, 0x20, 0x62, 0x30])
+        test.insert(0, data3.decode('latin1'))
+        test.expect_bytes_buffered(16)
+        test.expect_bytes_pending(0)
+        
+        # Final expected output combining all bytes
+        expected = bytes([
+            0x0d, 0x0a, 0x63, 0x61, 0x0a, 0x66, 0x65, 0x20, 0x62, 0x30,
+            0x0d, 0x62, 0x00, 0x61, 0x00, 0x00
+        ])
+        test.expect_output(expected.decode('latin1'))
         
         self.assertFalse(test.expect_error())
 
