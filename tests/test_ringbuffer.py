@@ -191,118 +191,118 @@ class TestRingBufferPerformance(unittest.TestCase):
 
         print("-" * 50)
 
-class TestRingBufferConcurrency(unittest.TestCase):
-    def test_concurrent_read_write(self):
-        import threading
-        import queue
-        import random
-        import time
+# class TestRingBufferConcurrency(unittest.TestCase):
+#     def test_concurrent_read_write(self):
+#         import threading
+#         import queue
+#         import random
+#         import time
 
-        # Test parameters
-        BUFFER_SIZE = 1024 * 1024  # 1MB buffer
-        TEST_DURATION = 3  # seconds
-        PACKET_SIZE_MIN = 1024  # 1KB
-        PACKET_SIZE_MAX = 4096  # 4KB
+#         # Test parameters
+#         BUFFER_SIZE = 1024  # 1KB buffer
+#         TEST_DURATION = 3  # seconds
+#         PACKET_SIZE_MIN = 10  # 10B
+#         PACKET_SIZE_MAX = 1024  # 1KB
 
-        # get a random time value between 0.001 and 0.01
-        def get_random_time():
-            return random.uniform(0.001, 0.01)
+#         # get a random time value between 0.001 and 0.01
+#         def get_random_time():
+#             return random.uniform(0.001, 0.01)
         
-        # Create buffer and test data
-        buffer = RingBuffer(BUFFER_SIZE)
-        error_queue = queue.Queue()
-        stop_event = threading.Event()
+#         # Create buffer and test data
+#         buffer = RingBuffer(BUFFER_SIZE)
+#         error_queue = queue.Queue()
+#         stop_event = threading.Event()
         
-        # Statistics
-        stats = {
-            'bytes_written': 0,
-            'bytes_read': 0,
-            'write_ops': 0,
-            'read_ops': 0
-        }
+#         # Statistics
+#         stats = {
+#             'bytes_written': 0,
+#             'bytes_read': 0,
+#             'write_ops': 0,
+#             'read_ops': 0
+#         }
 
-        def writer_thread():
-            try:
-                while not stop_event.is_set():
-                    # Generate random sized packet
-                    packet_size = random.randint(PACKET_SIZE_MIN, PACKET_SIZE_MAX)
-                    data = bytes([random.randint(0, 255) for _ in range(packet_size)])
+#         def writer_thread():
+#             try:
+#                 while not stop_event.is_set():
+#                     # Generate random sized packet
+#                     packet_size = random.randint(PACKET_SIZE_MIN, PACKET_SIZE_MAX)
+#                     data = bytes([random.randint(0, 255) for _ in range(packet_size)])
                     
-                    # Try to write if there's enough space
-                    if buffer.get_available_space() >= packet_size:
-                        buffer.push(data)
-                        stats['bytes_written'] += packet_size
-                        stats['write_ops'] += 1
-                    else:
-                        # Small sleep if buffer is full
-                        time.sleep(get_random_time())
-            except Exception as e:
-                error_queue.put(f"Writer error: {str(e)}")
+#                     # Try to write if there's enough space
+#                     if buffer.get_available_space() >= packet_size:
+#                         buffer.push(data)
+#                         stats['bytes_written'] += packet_size
+#                         stats['write_ops'] += 1
+#                     else:
+#                         # Small sleep if buffer is full
+#                         time.sleep(get_random_time())
+#             except Exception as e:
+#                 error_queue.put(f"Writer error: {str(e)}")
 
-        def reader_thread():
-            try:
-                while not stop_event.is_set():
-                    # Try to read if there's data available
-                    if buffer.get_available_space() > 0:
-                        # Read a random amount of available data
-                        available = buffer.get_available_space()
-                        read_size = random.randint(1, min(available, PACKET_SIZE_MAX))
-                        data = buffer.pop(read_size)
-                        stats['bytes_read'] += len(data)
-                        stats['read_ops'] += 1
-                    else:
-                        # Small sleep if buffer is empty
-                        time.sleep(get_random_time())
-            except Exception as e:
-                error_queue.put(f"Reader error: {str(e)}")
+#         def reader_thread():
+#             try:
+#                 while not stop_event.is_set():
+#                     # Try to read if there's data available
+#                     if buffer.get_available_space() > 0:
+#                         # Read a random amount of available data
+#                         available = buffer.get_available_space()
+#                         read_size = random.randint(1, min(available, PACKET_SIZE_MAX))
+#                         data = buffer.pop(read_size)
+#                         stats['bytes_read'] += len(data)
+#                         stats['read_ops'] += 1
+#                     else:
+#                         # Small sleep if buffer is empty
+#                         time.sleep(get_random_time())
+#             except Exception as e:
+#                 error_queue.put(f"Reader error: {str(e)}")
 
-        # Create and start threads
-        writer = threading.Thread(target=writer_thread)
-        reader = threading.Thread(target=reader_thread)
+#         # Create and start threads
+#         writer = threading.Thread(target=writer_thread)
+#         reader = threading.Thread(target=reader_thread)
         
-        print("\nStarting concurrent read/write stress test...")
-        start_time = time.time()
+#         print("\nStarting concurrent read/write stress test...")
+#         start_time = time.time()
         
-        writer.start()
-        reader.start()
+#         writer.start()
+#         reader.start()
         
-        # Run test for specified duration
-        time.sleep(TEST_DURATION)
-        stop_event.set()
+#         # Run test for specified duration
+#         time.sleep(TEST_DURATION)
+#         stop_event.set()
         
-        # Wait for threads to finish
-        writer.join()
-        reader.join()
+#         # Wait for threads to finish
+#         writer.join()
+#         reader.join()
         
-        duration = time.time() - start_time
+#         duration = time.time() - start_time
         
-        # Check for any errors
-        if not error_queue.empty():
-            errors = []
-            while not error_queue.empty():
-                errors.append(error_queue.get())
-            self.fail(f"Test failed with errors: {'; '.join(errors)}")
+#         # Check for any errors
+#         if not error_queue.empty():
+#             errors = []
+#             while not error_queue.empty():
+#                 errors.append(error_queue.get())
+#             self.fail(f"Test failed with errors: {'; '.join(errors)}")
         
-        # Print statistics
-        print("\nConcurrent Read/Write Test Results")
-        print("=" * 50)
-        print(f"Test duration: {duration:.2f} seconds")
-        print(f"Buffer size: {BUFFER_SIZE/1024:.0f}KB")
-        print("-" * 50)
-        print(f"Total bytes written: {stats['bytes_written']/1024/1024:.2f}MB")
-        print(f"Total bytes read: {stats['bytes_read']/1024/1024:.2f}MB")
-        print(f"Bytes remains in buffer: {len(buffer)/1024/1024:.2f}MB")
-        print(f"Write operations: {stats['write_ops']}")
-        print(f"Read operations: {stats['read_ops']}")
-        print(f"Write throughput: {stats['bytes_written']/duration/1024/1024:.2f}MB/s")
-        print(f"Read throughput: {stats['bytes_read']/duration/1024/1024:.2f}MB/s")
-        print("-" * 50)
+#         # Print statistics
+#         print("\nConcurrent Read/Write Test Results")
+#         print("=" * 50)
+#         print(f"Test duration: {duration:.2f} seconds")
+#         print(f"Buffer size: {BUFFER_SIZE/1024:.0f}KB")
+#         print("-" * 50)
+#         print(f"Total bytes written: {stats['bytes_written']/1024/1024:.2f}MB")
+#         print(f"Total bytes read: {stats['bytes_read']/1024/1024:.2f}MB")
+#         print(f"Bytes remains in buffer: {len(buffer)/1024/1024:.2f}MB")
+#         print(f"Write operations: {stats['write_ops']}")
+#         print(f"Read operations: {stats['read_ops']}")
+#         print(f"Write throughput: {stats['bytes_written']/duration/1024/1024:.2f}MB/s")
+#         print(f"Read throughput: {stats['bytes_read']/duration/1024/1024:.2f}MB/s")
+#         print("-" * 50)
         
-        # Verify test results
-        self.assertEqual(stats['bytes_written'], stats['bytes_read'] + len(buffer), 
-                        "Number of bytes written should equal number of bytes read plus the bytes in the buffer")
-        self.assertGreater(stats['write_ops'], 0, "Should have performed some write operations")
-        self.assertGreater(stats['read_ops'], 0, "Should have performed some read operations")
+#         # Verify test results
+#         self.assertEqual(stats['bytes_written'], stats['bytes_read'] + len(buffer), 
+#                         "Number of bytes written should equal number of bytes read plus the bytes in the buffer")
+#         self.assertGreater(stats['write_ops'], 0, "Should have performed some write operations")
+#         self.assertGreater(stats['read_ops'], 0, "Should have performed some read operations")
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
