@@ -66,7 +66,7 @@ class Reassembler:
             real_len = min(data_len - offset, self.output.available_capacity())
 
             # if we can store all data, set eof
-            if real_len >= data_len and eof:
+            if real_len >= data_len - offset and eof:
                 self.eof = True
 
             # Ensure buffer and bitmap have enough space
