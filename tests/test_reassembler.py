@@ -388,6 +388,219 @@ class TestReassembler(unittest.TestCase):
         
         self.assertFalse(test.expect_error())
 
+    def test_duplicate_simple(self):
+        """Test simple duplicate data handling"""
+        test = ReassemblerTestHarness("dup 1", capacity=65000)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_duplicate_sequential(self):
+        """Test duplicate data with sequential segments"""
+        test = ReassemblerTestHarness("dup 2", capacity=65000)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        test.insert(4, "abcd")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(4, "abcd")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_duplicate_random_substrings(self):
+        """Test duplicate data with random substrings"""
+        test = ReassemblerTestHarness("dup 3", capacity=65000)
+        
+        test.insert(0, "abcdefgh")
+        test.expect_bytes_buffered(8)
+        test.expect_output("abcdefgh")
+        test.expect_finished(False)
+        
+        # Simulate random substring insertions
+        data = "abcdefgh"
+        import random
+        for _ in range(1000):
+            # Generate random start and end indices
+            start_i = random.randint(0, 8)
+            end_i = random.randint(start_i, 8)
+            
+            # Extract substring and insert
+            substring = data[start_i:end_i]
+            test.insert(start_i, substring)
+            test.expect_bytes_buffered(0)
+            test.expect_output("")
+            test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_duplicate_with_extension(self):
+        """Test duplicate data with extended segment"""
+        test = ReassemblerTestHarness("dup 4", capacity=65000)
+        
+        test.insert(0, "abcd")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        test.insert(0, "abcdef")
+        test.expect_bytes_buffered(2)
+        test.expect_output("ef")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_single_gap(self):
+        """Test single gap in data"""
+        test = ReassemblerTestHarness("holes 1", capacity=65000)
+        
+        test.insert(1, "b")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_fill_single_gap(self):
+        """Test filling a single gap"""
+        test = ReassemblerTestHarness("holes 2", capacity=65000)
+        
+        test.insert(1, "b")
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_output("ab")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_with_eof(self):
+        """Test holes with EOF flag"""
+        test = ReassemblerTestHarness("holes 3", capacity=65000)
+        
+        test.insert(1, "b", True)  # is_last
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_output("ab")
+        test.expect_finished(True)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_overlapping_fill(self):
+        """Test filling holes with overlapping data"""
+        test = ReassemblerTestHarness("holes 4", capacity=65000)
+        
+        test.insert(1, "b")
+        test.insert(0, "ab")
+        test.expect_bytes_buffered(2)
+        test.expect_output("ab")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_multiple_gaps(self):
+        """Test multiple gaps filled in random order"""
+        test = ReassemblerTestHarness("holes 5", capacity=65000)
+        
+        test.insert(1, "b")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(3, "d")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(2, "c")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_fill_multiple_at_once(self):
+        """Test filling multiple holes with one insert"""
+        test = ReassemblerTestHarness("holes 6", capacity=65000)
+        
+        test.insert(1, "b")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(3, "d")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(0, "abc")
+        test.expect_bytes_buffered(4)
+        test.expect_output("abcd")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_holes_fill_and_eof(self):
+        """Test filling holes and ending with empty last segment"""
+        test = ReassemblerTestHarness("holes 7", capacity=65000)
+        
+        test.insert(1, "b")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(3, "d")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_output("ab")
+        test.expect_finished(False)
+        
+        test.insert(2, "c")
+        test.expect_bytes_buffered(2)
+        test.expect_output("cd")
+        test.expect_finished(False)
+        
+        test.insert(4, "", True)  # is_last with empty string
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(True)
+        
+        self.assertFalse(test.expect_error())
+
 class TestReassemblerPerformance(unittest.TestCase):
     def measure_throughput(self, packet_size: int, num_operations: int, out_of_order: bool = False) -> float:
         """Measure reassembler throughput under different conditions"""
