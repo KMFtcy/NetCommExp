@@ -944,7 +944,6 @@ class TestReassembler(unittest.TestCase):
         test = ReassemblerTestHarness("seq 4", capacity=65000)
         
         for i in range(100):
-            print(i)
             test.expect_bytes_pushed(4 * i)
             test.insert(4 * i, "abcd")
             test.expect_finished(False)
@@ -978,6 +977,92 @@ class TestReassembler(unittest.TestCase):
             0x0d, 0x62, 0x00, 0x61, 0x00, 0x00
         ])
         test.expect_output(expected.decode('latin1'))
+        
+        self.assertFalse(test.expect_error())
+
+    def test_construction(self):
+        """Test basic construction of reassembler"""
+        test = ReassemblerTestHarness("construction", capacity=65000)
+        
+        test.expect_bytes_pushed(0)
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_a_at_0(self):
+        """Test inserting 'a' at index 0"""
+        test = ReassemblerTestHarness("insert a @ 0", capacity=65000)
+        
+        test.insert(0, "a")
+        test.expect_bytes_pushed(1)
+        test.expect_output("a")
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_a_at_0_last(self):
+        """Test inserting 'a' at index 0 with last flag"""
+        test = ReassemblerTestHarness("insert a @ 0 [last]", capacity=65000)
+        
+        test.insert(0, "a", True)  # is_last
+        test.expect_bytes_pushed(1)
+        test.expect_output("a")
+        test.expect_finished(True)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_empty_stream(self):
+        """Test empty stream with last flag"""
+        test = ReassemblerTestHarness("empty stream", capacity=65000)
+        
+        test.insert(0, "", True)  # is_last
+        test.expect_bytes_pushed(0)
+        test.expect_finished(True)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_b_at_0_last(self):
+        """Test inserting 'b' at index 0 with last flag"""
+        test = ReassemblerTestHarness("insert b @ 0 [last]", capacity=65000)
+        
+        test.insert(0, "b", True)  # is_last
+        test.expect_bytes_pushed(1)
+        test.expect_output("b")
+        test.expect_finished(True)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_empty_at_0(self):
+        """Test inserting empty string at index 0"""
+        test = ReassemblerTestHarness("insert empty string @ 0", capacity=65000)
+        
+        test.insert(0, "")
+        test.expect_bytes_pushed(0)
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_after_unacceptable(self):
+        """Test inserting after first unacceptable index"""
+        test = ReassemblerTestHarness("insert a after 'first unacceptable'", capacity=1)
+        
+        test.insert(3, "g")
+        test.expect_bytes_pushed(0)
+        test.expect_finished(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_before_unassembled(self):
+        """Test inserting before first unassembled index"""
+        test = ReassemblerTestHarness("insert b before 'first unassembled'", capacity=1)
+        
+        test.insert(0, "b")
+        test.expect_output("b")
+        test.expect_bytes_pushed(1)
+        
+        test.insert(0, "b")
+        test.expect_bytes_pushed(1)
+        test.expect_finished(False)
         
         self.assertFalse(test.expect_error())
 
