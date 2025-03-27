@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from src.mini_tcp.wrapping_intergers import Wrap32
 
-MAX_PAYLOAD_SIZE = 1000
+MAX_PAYLOAD_SIZE = 1024
 MAX_WINDOW_SIZE = 65535
 MAX_RTO = 60000
 MIN_RTO = 1000
