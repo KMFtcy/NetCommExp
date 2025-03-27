@@ -601,6 +601,291 @@ class TestReassembler(unittest.TestCase):
         
         self.assertFalse(test.expect_error())
 
+    def test_overlap_assembled_unread(self):
+        """Test overlapping assembled but unread section"""
+        test = ReassemblerTestHarness("overlapping assembled/unread section", capacity=1000)
+        
+        test.insert(0, "a")
+        test.insert(0, "ab")
+        test.expect_bytes_buffered(2)
+        test.expect_output("ab")
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_assembled_read(self):
+        """Test overlapping assembled and read section"""
+        test = ReassemblerTestHarness("overlapping assembled/read section", capacity=1000)
+        
+        test.insert(0, "a")
+        test.expect_output("a")
+        
+        test.insert(0, "ab")
+        test.expect_output("b")
+        test.expect_bytes_buffered(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_unassembled_fill_hole(self):
+        """Test overlapping unassembled section that fills a hole"""
+        test = ReassemblerTestHarness("overlapping unassembled section to fill hole", capacity=1000)
+        
+        test.insert(1, "b")
+        test.expect_output("")
+        
+        test.insert(0, "ab")
+        test.expect_output("ab")
+        test.expect_bytes_pending(0)
+        test.expect_bytes_buffered(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_unassembled_no_assembly(self):
+        """Test overlapping unassembled section without assembly"""
+        test = ReassemblerTestHarness("overlapping unassembled section", capacity=1000)
+        
+        test.insert(1, "b")
+        test.expect_output("")
+        
+        test.insert(1, "bc")
+        test.expect_output("")
+        test.expect_bytes_pending(2)
+        test.expect_bytes_buffered(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_unassembled_extended(self):
+        """Test overlapping unassembled section with extension"""
+        test = ReassemblerTestHarness("overlapping unassembled section 2", capacity=1000)
+        
+        test.insert(2, "c")
+        test.expect_output("")
+        
+        test.insert(1, "bcd")
+        test.expect_output("")
+        test.expect_bytes_pending(3)
+        test.expect_bytes_buffered(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_multiple_unassembled(self):
+        """Test overlapping multiple unassembled sections"""
+        test = ReassemblerTestHarness("overlapping multiple unassembled sections", capacity=1000)
+        
+        test.insert(1, "b")
+        test.insert(3, "d")
+        test.expect_output("")
+        
+        test.insert(1, "bcde")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(4)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_over_existing(self):
+        """Test inserting over existing section"""
+        test = ReassemblerTestHarness("insert over existing section", capacity=1000)
+        
+        test.insert(2, "c")
+        test.insert(1, "bcd")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(3)
+        
+        test.insert(0, "a")
+        test.expect_output("abcd")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_within_existing(self):
+        """Test inserting within existing section"""
+        test = ReassemblerTestHarness("insert within existing section", capacity=1000)
+        
+        test.insert(1, "bcd")
+        test.insert(2, "c")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(3)
+        
+        test.insert(0, "a")
+        test.expect_output("abcd")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_hole_filled_progressively(self):
+        """Test hole filled progressively with overlap"""
+        test = ReassemblerTestHarness("hole filled with overlap", capacity=20)
+        
+        test.insert(5, "fgh")
+        test.expect_bytes_buffered(0)
+        test.expect_output("")
+        test.expect_finished(False)
+        
+        test.insert(0, "abc")
+        test.expect_bytes_buffered(3)
+        
+        test.insert(0, "abcdef")
+        test.expect_bytes_buffered(8)
+        test.expect_bytes_pending(0)
+        test.expect_output("abcdefgh")
+        
+        self.assertFalse(test.expect_error())
+
+    def test_multiple_overlaps(self):
+        """Test multiple overlapping sections"""
+        test = ReassemblerTestHarness("multiple overlaps", capacity=1000)
+        
+        test.insert(2, "c")
+        test.insert(4, "e")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(2)
+        
+        test.insert(1, "bcdef")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(5)
+        
+        test.insert(0, "a")
+        test.expect_output("abcdef")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_between_pending(self):
+        """Test overlap between two pending sections"""
+        test = ReassemblerTestHarness("overlap between two pending", capacity=1000)
+        
+        test.insert(1, "bc")
+        test.insert(4, "ef")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(4)
+        
+        test.insert(2, "cde")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(5)
+        
+        test.insert(0, "a")
+        test.expect_output("abcdef")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_exact_copy(self):
+        """Test exact copy of a segment"""
+        test = ReassemblerTestHarness("exact copy", capacity=1000)
+        
+        test.insert(1, "b")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(1, "b")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(0, "a")
+        test.expect_output("ab")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_yet_another_overlap(self):
+        """Test complex overlapping scenario"""
+        test = ReassemblerTestHarness("yet another overlap test", capacity=150)
+        
+        test.insert(4, "efgh")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(4)
+        
+        test.insert(14, "op")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(6)
+        
+        test.insert(18, "s")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(7)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(1)
+        test.expect_bytes_pending(7)
+        
+        test.insert(0, "abcde")
+        test.expect_bytes_buffered(8)
+        test.expect_bytes_pending(3)
+        
+        test.insert(14, "opqrst")
+        test.expect_bytes_buffered(8)
+        test.expect_bytes_pending(6)
+        
+        test.insert(14, "op")
+        test.expect_bytes_buffered(8)
+        test.expect_bytes_pending(6)
+        
+        test.insert(8, "ijklmn")
+        test.expect_bytes_buffered(20)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_small_capacity_overlap(self):
+        """Test small capacity with overlapping insert"""
+        test = ReassemblerTestHarness("small capacity with overlapping insert", capacity=2)
+        
+        test.insert(1, "bc")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(0, "a")
+        test.expect_output("ab")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_multiple_unassembled_2(self):
+        """Test another case of overlapping multiple unassembled sections"""
+        test = ReassemblerTestHarness("overlapping multiple unassembled sections 2", capacity=1000)
+        
+        test.insert(1, "bcd")
+        test.insert(2, "cde")
+        test.expect_output("")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(4)
+        
+        test.insert(0, "a")
+        test.expect_output("abcde")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_overlap_multiple_unassembled_3(self):
+        """Test complex case of overlapping multiple unassembled sections"""
+        test = ReassemblerTestHarness("overlapping multiple unassembled sections 3", capacity=30)
+        
+        test.insert(15, "hello")
+        test.insert(21, "world!")
+        test.insert(0, "I am sentient")
+        test.insert(5, "sentient, hello world")
+        
+        test.expect_bytes_pending(0)
+        test.expect_bytes_buffered(27)
+        test.expect_output("I am sentient, hello world!")
+        
+        self.assertFalse(test.expect_error())
+
 class TestReassemblerPerformance(unittest.TestCase):
     def measure_throughput(self, packet_size: int, num_operations: int, out_of_order: bool = False) -> float:
         """Measure reassembler throughput under different conditions"""
