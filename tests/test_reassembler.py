@@ -32,11 +32,17 @@ class ReassemblerTestHarness:
         assert actual == expected.encode(), \
             f"{self.test_name}: Expected output '{expected}' but got '{actual.decode()}'"
 
-    def expect_eof(self, expected: bool = True) -> None:
+    def expect_closed(self, expected: bool = True) -> None:
         """Verify the EOF state of the output stream"""
         actual = self.output.is_closed()
         assert actual == expected, \
             f"{self.test_name}: Expected EOF to be {expected} but got {actual}"
+
+    def expect_finished(self, expected: bool = True) -> None:
+        """Verify the finished state of the output stream"""
+        actual = self.output.is_finished()
+        assert actual == expected, \
+            f"{self.test_name}: Expected finished to be {expected} but got {actual}"
 
     def expect_error(self) -> bool:
         """Check if the output stream has an error"""
@@ -52,7 +58,7 @@ class TestReassembler(unittest.TestCase):
         test.expect_bytes_buffered(5)
         test.expect_bytes_pending(0)
         test.expect_output("hello")
-        test.expect_eof(False)
+        test.expect_closed(False)
         self.assertFalse(test.expect_error())
 
     def test_insert_out_of_order(self):
@@ -69,7 +75,7 @@ class TestReassembler(unittest.TestCase):
         test.expect_bytes_buffered(10)
         test.expect_bytes_pending(0)
         test.expect_output("helloworld")
-        test.expect_eof(False)
+        test.expect_closed(False)
         self.assertFalse(test.expect_error())
 
     def test_insert_with_eof(self):
@@ -80,7 +86,7 @@ class TestReassembler(unittest.TestCase):
         test.expect_bytes_buffered(5)
         test.expect_bytes_pending(0)
         test.expect_output("hello")
-        test.expect_eof(True)
+        test.expect_closed(True)
         self.assertFalse(test.expect_error())
 
     def test_overlapping_segments(self):
@@ -170,14 +176,216 @@ class TestReassembler(unittest.TestCase):
         test.insert(5, "world", True)
         test.expect_bytes_buffered(0)
         test.expect_bytes_pending(5)
-        test.expect_eof(False)
+        test.expect_closed(False)
         
         # Insert missing data
         test.insert(0, "hello")
         test.expect_bytes_buffered(10)
         test.expect_bytes_pending(0)
         test.expect_output("helloworld")
-        test.expect_eof(True)
+        test.expect_closed(True)
+        self.assertFalse(test.expect_error())
+
+    def test_all_within_capacity(self):
+        """Test inserting segments all within capacity"""
+        test = ReassemblerTestHarness("all within capacity", capacity=2)
+        
+        test.insert(0, "ab")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        test.expect_output("ab")
+        
+        test.insert(2, "cd")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        test.expect_output("cd")
+        
+        test.insert(4, "ef")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        test.expect_output("ef")
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_beyond_capacity(self):
+        """Test inserting segments beyond capacity"""
+        test = ReassemblerTestHarness("insert beyond capacity", capacity=2)
+        
+        test.insert(0, "ab")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        
+        test.insert(2, "cd")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        
+        test.expect_output("ab")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        test.insert(2, "cd")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        
+        test.expect_output("cd")
+        self.assertFalse(test.expect_error())
+
+    def test_overlapping_inserts_with_capacity(self):
+        """Test overlapping inserts with capacity constraint"""
+        test = ReassemblerTestHarness("overlapping inserts", capacity=1)
+        
+        test.insert(0, "ab")
+        test.expect_bytes_buffered(1)
+        test.expect_bytes_pending(0)
+        
+        test.insert(0, "ab")
+        test.expect_bytes_buffered(1)
+        test.expect_bytes_pending(0)
+        
+        test.expect_output("a")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        test.insert(0, "abc")
+        test.expect_bytes_buffered(1)
+        test.expect_bytes_pending(0)
+        
+        test.expect_output("b")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(0)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_beyond_capacity_with_different_data(self):
+        """Test inserting beyond capacity with different data"""
+        test = ReassemblerTestHarness("insert beyond capacity repeated with different data", capacity=2)
+        
+        test.insert(1, "b")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(2, "bX")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        test.expect_output("ab")
+        
+        test.insert(1, "bc")
+        test.expect_bytes_buffered(1)
+        test.expect_bytes_pending(0)
+        test.expect_output("c")
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_last_beyond_capacity(self):
+        """Test inserting last segment beyond capacity"""
+        test = ReassemblerTestHarness("insert last beyond capacity", capacity=2)
+        
+        test.insert(1, "bc", True)  # is_last
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        test.expect_output("ab")
+        
+        test.expect_closed(False)
+        
+        test.insert(1, "bc", True)  # is_last
+        test.expect_bytes_buffered(1)
+        test.expect_bytes_pending(0)
+        test.expect_output("c")
+
+        
+        test.expect_closed(True)
+        self.assertFalse(test.expect_error())
+
+    def test_insert_last_beyond_capacity_with_empty(self):
+        """Test inserting last segment beyond capacity with empty string"""
+        test = ReassemblerTestHarness("insert last fully beyond capacity + empty string is last", capacity=2)
+        
+        test.insert(1, "b")
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        
+        test.insert(2, "c", True)  # is_last
+        test.expect_closed(False)
+        test.insert(0, "abc", True)  # is_last
+        test.expect_closed(False)
+        test.insert(3, "", True)  # is_last
+        test.expect_closed(False)
+        
+        test.expect_output("ab")
+        test.insert(2, "c", True)  # is_last
+        test.expect_output("c")
+        test.expect_closed(True)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_last_index_exactly_fills_capacity(self):
+        """Test when last index exactly fills capacity"""
+        test = ReassemblerTestHarness("last index exactly fills capacity", capacity=2)
+        
+        test.insert(0, "a")
+        test.insert(1, "b")
+        test.expect_output("ab")
+        
+        test.insert(2, "c")
+        test.expect_output("c")
+        
+        test.insert(3, "de", True)  # is_last
+        test.expect_output("de")
+        test.expect_closed(True)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_last_index_is_unacceptable(self):
+        """Test when last index is unacceptable"""
+        test = ReassemblerTestHarness("last index is unacceptable", capacity=2)
+        
+        test.insert(0, "a")
+        test.insert(1, "b")
+        test.expect_output("ab")
+        
+        test.insert(2, "c")
+        test.expect_output("c")
+        
+        test.insert(3, "def", True)  # is_last
+        test.expect_output("de")
+        test.expect_closed(False)
+        
+        self.assertFalse(test.expect_error())
+
+    def test_insert_beyond_capacity_at_huge_index(self):
+        """Test inserting beyond capacity at very large index"""
+        test = ReassemblerTestHarness("insert beyond capacity at colossally gigantic index", capacity=3)
+        
+        test.insert(1, "b", True)  # is_last
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(2**64 - 1, "z")  # UINT64_MAX
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(2**64 - 2, "xyz")  # UINT64_MAX - 1
+        test.expect_bytes_buffered(0)
+        test.expect_bytes_pending(1)
+        
+        test.insert(0, "a")
+        test.expect_bytes_buffered(2)
+        test.expect_bytes_pending(0)
+        test.expect_output("ab")
+        test.expect_closed(True)
+        
         self.assertFalse(test.expect_error())
 
 class TestReassemblerPerformance(unittest.TestCase):
