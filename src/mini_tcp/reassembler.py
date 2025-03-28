@@ -21,11 +21,13 @@ class Reassembler:
     def check_contiguous(self):
         # find contiguous segment
         count = 0
+        available_capacity = self.output.available_capacity()
         for i in range(self.window_size):
             if not self.bitmap[i]:
                 break
             count += 1
         
+        count = min(count, available_capacity)
         if count > 0:
             self.output.push(bytes(self.buffer[:count]))
             self.buffer[:-count] = self.buffer[count:]
