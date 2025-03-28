@@ -3,8 +3,34 @@ from typing import Optional, Tuple
 from src.mini_tcp.tcp_message import TCPMessage, TCPSenderMessage, TCPReceiverMessage
 from src.mini_tcp.wrapping_intergers import Wrap32
 import logging
+import os
+from datetime import datetime
 
-logging.basicConfig(level=logging.DEBUG)
+# Create logs directory if it doesn't exist
+os.makedirs('logs', exist_ok=True)
+
+# Configure logging to output to both file and console
+logger = logging.getLogger('mini_tcp')
+logger.setLevel(logging.DEBUG)
+
+# File handler - logs/mini_tcp_yyyy-mm-dd.log
+file_handler = logging.FileHandler(
+    f'logs/mini_tcp_{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.log',
+    encoding='utf-8'
+)
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_formatter = logging.Formatter('%(message)s')
+console_handler.setFormatter(console_formatter)
+
+# Add both handlers to logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 class TCPOverUDPAdapter:
     def __init__(self, udp_socket: socket.socket, debug: bool = False):
@@ -79,7 +105,15 @@ class TCPOverUDPAdapter:
 
     def sendto(self, message: TCPMessage, address: Tuple[str, int]) -> int:
         if self.debug:
-            print(f"Writing message to {address}: {message}")
+            logger.debug(f"\n[Sending] -> {address}\n"
+                        f"├─ Sender:\n"
+                        f"│  ├─ Sequence Number: {message.sender_message.seqno}\n"
+                        f"│  ├─ Payload Length: {len(message.sender_message.payload) if message.sender_message.payload else 0}\n"
+                        f"│  └─ Flags: SYN={message.sender_message.SYN}, FIN={message.sender_message.FIN}, RST={message.sender_message.RST}\n"
+                        f"└─ Receiver:\n"
+                        f"   ├─ ACK Number: {message.receiver_message.ackno}\n"
+                        f"   ├─ Window Size: {message.receiver_message.window_size}\n"
+                        f"   └─ RST Flag: {message.receiver_message.RST}")
         """Write TCPMessage to UDP socket"""
         data = self.serialize_tcp_message(message)
         return self.socket.sendto(data, address)
@@ -94,7 +128,15 @@ class TCPOverUDPAdapter:
             self.udp_recv_on = False
             message = self.deserialize_tcp_message(data)
             if self.debug:
-                print(f"Received message from {addr}: {message}")
+                logger.debug(f"\n[Receiving] <- {addr}\n"
+                            f"├─ Sender:\n"
+                            f"│  ├─ Sequence Number: {message.sender_message.seqno}\n"
+                            f"│  ├─ Payload Length: {len(message.sender_message.payload) if message.sender_message.payload else 0}\n"
+                            f"│  └─ Flags: SYN={message.sender_message.SYN}, FIN={message.sender_message.FIN}, RST={message.sender_message.RST}\n"
+                            f"└─ Receiver:\n"
+                            f"   ├─ ACK Number: {message.receiver_message.ackno}\n"
+                            f"   ├─ Window Size: {message.receiver_message.window_size}\n"
+                            f"   └─ RST Flag: {message.receiver_message.RST}")
             return message, addr
         except socket.error:
             return None, None
