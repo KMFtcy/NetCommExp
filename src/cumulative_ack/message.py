@@ -1,16 +1,16 @@
 from dataclasses import dataclass
-
+from typing import Optional
 @dataclass
 class CumulativeAckSenderMessage:
-    seqno: int
-    payload: bytes
-    SYN: bool
-    FIN: bool
+    seqno: Optional[int] = None
+    payload: Optional[bytes] = None
+    SYN: bool = False
+    FIN: bool = False
     # RST: bool
 
 @dataclass
 class CumulativeAckReceiverMessage:
-    ackno: int
+    ackno: Optional[int] = None
     # window_size: int
     # RST: bool
 
@@ -45,6 +45,7 @@ def parse_message(data: bytes) -> CumulativeAckProtocolMessage:
     
     # Get payload (remaining bytes)
     payload = data[17:]
+    payload = None if not payload else payload
 
     # Create sender and receiver messages
     sender_msg = CumulativeAckSenderMessage(
@@ -68,11 +69,11 @@ def serialize_message(msg: CumulativeAckProtocolMessage) -> bytes:
     """
     Serialize CumulativeAckProtocolMessage into bytes
     """
-    # Convert seqno to 8 bytes
-    seqno_bytes = msg.sender_message.seqno.to_bytes(8, byteorder='big')
+    # Convert seqno to 8 bytes (0 if None)
+    seqno_bytes = (msg.sender_message.seqno or 0).to_bytes(8, byteorder='big')
     
-    # Convert ackno to 8 bytes
-    ackno_bytes = msg.receiver_message.ackno.to_bytes(8, byteorder='big')
+    # Convert ackno to 8 bytes (0 if None)
+    ackno_bytes = (msg.receiver_message.ackno or 0).to_bytes(8, byteorder='big')
     
     # Create control byte
     control_byte = 0
@@ -82,5 +83,5 @@ def serialize_message(msg: CumulativeAckProtocolMessage) -> bytes:
         control_byte |= 0x02
     
     # Combine all parts
-    return seqno_bytes + ackno_bytes + bytes([control_byte]) + msg.sender_message.payload
+    return seqno_bytes + ackno_bytes + bytes([control_byte]) + (msg.sender_message.payload or b'')
 
