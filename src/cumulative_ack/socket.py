@@ -1,5 +1,5 @@
 import asyncio
-from src.cumulative_ack.protocol import CumulativeAckProtocol, EchoServerProtocol
+from src.cumulative_ack.protocol import CumulativeAckProtocol
 from enum import Enum
 import threading
 import time
@@ -25,7 +25,7 @@ class Socket:
 
         while not self._stop_event.is_set():
             await asyncio.sleep(1)
-            print("ticking")
+            print("transport listening...")
 
         self.transport.close()
 

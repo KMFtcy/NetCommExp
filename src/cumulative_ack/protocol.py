@@ -42,6 +42,8 @@ class CumulativeAckProtocol:
     def connection_made(self, transport):
         self._transport = transport
         print("connection made")
+        self.loop.create_task(self.tick())
+        print("start tick")
 
     def datagram_received(self, data, addr):
         print(f"Received data {data}")
@@ -83,8 +85,5 @@ class CumulativeAckProtocol:
 
     async def tick(self):
         while True:
-            await asyncio.sleep(self.RTO)  # Tick every RTO
-            print("ticking")
-
-    def start_tick(self):
-        self.tick_task = self.loop.create_task(self.tick())
+            await asyncio.sleep(self.RTO / 1000)  # Tick every RTO
+            print("protocol ticking")
