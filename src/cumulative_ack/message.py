@@ -56,7 +56,7 @@ def parse_message(data: bytes) -> CumulativeAckProtocolMessage:
     
     receiver_msg = CumulativeAckReceiverMessage(
         ackno=ackno,
-        window_size=65535  # Default window size
+        # window_size=65535  # Default window size
     )
 
     return CumulativeAckProtocolMessage(
