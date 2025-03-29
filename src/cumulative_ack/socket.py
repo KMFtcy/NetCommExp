@@ -1,5 +1,5 @@
 import asyncio
-from src.cumulative_ack.protocol import CumulativeAckProtocol
+from src.cumulative_ack.protocol import CumulativeAckProtocol, EchoServerProtocol
 from enum import Enum
 import threading
 import time
@@ -20,8 +20,8 @@ class Socket:
 
     async def loop_func(self):
         print("start loop")
-        self.transport, self.protocol = await self.protocol_event_loop.create_datagram_endpoint(lambda: self.protocol, local_addr=('localhost', 8080))
-        print("transport and protocol created")
+        self.transport, _ = await self.protocol_event_loop.create_datagram_endpoint(lambda: self.protocol, local_addr=('127.0.0.1', 8080))
+        print("create endpoint on port 8080")
 
         while not self._stop_event.is_set():
             await asyncio.sleep(1)

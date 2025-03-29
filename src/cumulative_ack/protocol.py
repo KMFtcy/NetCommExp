@@ -2,11 +2,10 @@ import asyncio
 from src.util.byte_stream import ByteStream
 from src.cumulative_ack.message import serialize_message, parse_message, CumulativeAckProtocolMessage, CumulativeAckSenderMessage, CumulativeAckReceiverMessage
 from collections import deque
-import threading
 
 BUFFER_SIZE = 65535
 
-class CumulativeAckProtocol(asyncio.Protocol):
+class CumulativeAckProtocol:
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self.loop = loop
         self._transport = None # transport is a socket provided by asyncio, call transport.sendto() to send data
@@ -42,10 +41,11 @@ class CumulativeAckProtocol(asyncio.Protocol):
 
     def connection_made(self, transport):
         self._transport = transport
+        print("connection made")
 
     def datagram_received(self, data, addr):
-        print(f"Received data from {addr}")
-        message = parse_message(data)
+        print(f"Received data {data}")
+        # message = parse_message(data)
 
         # # handle sender process ===
         # receiver_message = message.receiver_message
@@ -75,6 +75,8 @@ class CumulativeAckProtocol(asyncio.Protocol):
         # message = CumulativeAckProtocolMessage(my_sender_message, my_receiver_message)
         # self._transport.sendto(serialize_message(message), addr)
 
+    def connection_lost(self, exc):
+        print("connection lost")
 
     def error_received(self, exc):
         print(f"Error received: {exc}")
