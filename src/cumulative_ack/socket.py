@@ -18,17 +18,20 @@ class Socket:
         self.protocol_thread = None
         self._stop_event = threading.Event()
 
-    async def protocol_loop(self):
+    async def func_protocol_loop(self):
+        print("start loop")
         self.transport, self.protocol = await self.protocol_loop.create_datagram_endpoint(lambda: self.protocol, local_addr=('localhost', 8080))
+        print("transport and protocol created")
 
         while not self._stop_event.is_set():
             await asyncio.sleep(1)
+            print("ticking")
 
         self.transport.close()
 
     def start_loop(self):
         asyncio.set_event_loop(self.protocol_loop)
-        self.protocol_loop.run_forever()
+        self.protocol_loop.run_until_complete(self.func_protocol_loop())
 
     def bind(self, address):
         self.src_address = address
@@ -60,6 +63,7 @@ class Socket:
         # return buffer.pop(bytes_can_read)
         while True:
             time.sleep(10)
+            print("waiting...")
         return b"waiting..."
 
     def close(self):

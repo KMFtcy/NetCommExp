@@ -2,6 +2,7 @@ import asyncio
 from src.util.byte_stream import ByteStream
 from src.cumulative_ack.message import serialize_message, parse_message, CumulativeAckProtocolMessage, CumulativeAckSenderMessage, CumulativeAckReceiverMessage
 from collections import deque
+import threading
 
 BUFFER_SIZE = 65535
 
@@ -9,7 +10,7 @@ class CumulativeAckProtocol(asyncio.Protocol):
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self.loop = loop
         self._transport = None # transport is a socket provided by asyncio, call transport.sendto() to send data
-        
+
         # Protocol Information
         self.MAX_PACKET_SIZE = 1024
 
@@ -46,33 +47,33 @@ class CumulativeAckProtocol(asyncio.Protocol):
         print(f"Received data from {addr}")
         message = parse_message(data)
 
-        # handle sender process ===
-        receiver_message = message.receiver_message
-        # update ackno
-        if receiver_message.ackno > self.ackno and receiver_message.ackno <= self.ackno + self.window_size and receiver_message.ackno < self.next_seqno:
-            self.ackno = receiver_message.ackno
-            # remove oustanding segments
-            while len(self.oustanding_segments) > 0:
-                segment = self.oustanding_segments[0]
-                if segment.seqno + len(segment.payload) <= self.ackno:
-                    self.oustanding_segments.popleft()
-                else:
-                    break
-            # reset timer
-            self.last_sent_time = 0
-        my_sender_message = CumulativeAckSenderMessage(self.seqno)
+        # # handle sender process ===
+        # receiver_message = message.receiver_message
+        # # update ackno
+        # if receiver_message.ackno > self.ackno and receiver_message.ackno <= self.ackno + self.window_size and receiver_message.ackno < self.next_seqno:
+        #     self.ackno = receiver_message.ackno
+        #     # remove oustanding segments
+        #     while len(self.oustanding_segments) > 0:
+        #         segment = self.oustanding_segments[0]
+        #         if segment.seqno + len(segment.payload) <= self.ackno:
+        #             self.oustanding_segments.popleft()
+        #         else:
+        #             break
+        #     # reset timer
+        #     self.last_sent_time = 0
+        # my_sender_message = CumulativeAckSenderMessage(self.seqno)
 
-        # handle receiver
-        sender_message = message.sender_message
-        if self.receiver_buffer.available_capacity() >= len(sender_message.payload):
-            bytes_pushed = self.receiver_buffer.push(sender_message.payload)
-            self.last_ackno = self.last_ackno + bytes_pushed
-            self.event_bytes_received.set()
-        my_receiver_message = CumulativeAckReceiverMessage(self.next_ackno)
+        # # handle receiver
+        # sender_message = message.sender_message
+        # if self.receiver_buffer.available_capacity() >= len(sender_message.payload):
+        #     bytes_pushed = self.receiver_buffer.push(sender_message.payload)
+        #     self.last_ackno = self.last_ackno + bytes_pushed
+        #     self.event_bytes_received.set()
+        # my_receiver_message = CumulativeAckReceiverMessage(self.next_ackno)
 
-        # reply
-        message = CumulativeAckProtocolMessage(sender_message, receiver_message)
-        self._transport.sendto(serialize_message(message), addr)
+        # # reply
+        # message = CumulativeAckProtocolMessage(my_sender_message, my_receiver_message)
+        # self._transport.sendto(serialize_message(message), addr)
 
 
     def error_received(self, exc):
