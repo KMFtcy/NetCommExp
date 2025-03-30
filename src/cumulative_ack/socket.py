@@ -1,5 +1,6 @@
 import asyncio
 from src.cumulative_ack.protocol import CumulativeAckProtocol
+from src.cumulative_ack.message import CumulativeAckProtocolMessage, serialize_message
 from enum import Enum
 import threading
 import time
@@ -12,7 +13,7 @@ class SocketRole(Enum):
 class Socket:
     def __init__(self):
         self.protocol_event_loop = asyncio.new_event_loop()
-        self.protocol = CumulativeAckProtocol(self.protocol_event_loop)
+        self.protocol = CumulativeAckProtocol(self.protocol_event_loop, self.send_func, self.accept_handler)
         self.src_address = None
         self.dst_address = None
         self.protocol_thread = None
@@ -29,7 +30,13 @@ class Socket:
             await asyncio.sleep(1)
             # print("transport listening...")
 
-        self.transport.close()
+        self._transport.close()
+
+    def send_func(self, message: CumulativeAckProtocolMessage):
+        while not self._transport:
+            print("waiting for transport")
+            time.sleep(1)
+        self._transport.sendto(serialize_message(message), self.dst_address)
 
     def start_loop(self):
         asyncio.set_event_loop(self.protocol_event_loop)
@@ -49,11 +56,12 @@ class Socket:
         self.protocol_thread.start()
         return self
 
+    def accept_handler(self, message: CumulativeAckProtocolMessage, addr):
+        if self.dst_address is None:
+            self.dst_address = addr
+
     def send(self, data: bytes):
-        while not self._transport:
-            print("waiting for transport")
-            time.sleep(1)
-        self.protocol.send_to(data, self.dst_address)
+        self.protocol.push(data)
 
     def recv(self, size: int):
         buffer = self.protocol.receiver_buffer
