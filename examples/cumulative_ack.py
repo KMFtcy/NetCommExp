@@ -1,12 +1,23 @@
 import sys
 import os
 import argparse
-
+import time
 # Add parent directory to system path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.cumulative_ack.socket import Socket
 from src.cumulative_ack.message import CumulativeAckProtocolMessage, CumulativeAckSenderMessage, CumulativeAckReceiverMessage, serialize_message
 from socket import socket as UDPSocket, AF_INET, SOCK_DGRAM
+
+def test_bandwidth_as_client(host, port):
+    client = Socket()
+    client.bind(('127.0.0.1', 9090))
+    client.connect((host, port))
+    start_time = time.time()
+    for i in range(1000):
+        client.send(b'a' * 1024)
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time} seconds")
+    print(f"Bandwidth: {10 * 1024 / (end_time - start_time)} bytes/second")
 
 def test_my_client_send(host, port):
     client = Socket()
@@ -47,7 +58,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Cumulative Ack Test')
     parser.add_argument('--test-server-running', action='store_true', help='Test server running')
     parser.add_argument('--client-send', action='store_true', help='Test client send message')
-    parser.add_argument('--client-send-my', action='store_true', help='Test client send message')
+    parser.add_argument('--client-send-my', action='store_true', help='Test client send input message')
+    parser.add_argument('--bandwidth-client', action='store_true', help='Test bandwidth')
     parser.add_argument('--message', default='Hello, Server!', help='Message to send (client mode only)')
     parser.add_argument('--host', default='localhost', help='Host address (default: localhost)')
     parser.add_argument('--port', type=int, default=8080, help='Port number (default: 8080)')
@@ -60,3 +72,5 @@ if __name__ == "__main__":
         test_client_send(args.message, args.host, args.port)
     elif args.client_send_my:
         test_my_client_send(args.host, args.port)
+    elif args.bandwidth_client:
+        test_bandwidth_as_client(args.host, args.port)
