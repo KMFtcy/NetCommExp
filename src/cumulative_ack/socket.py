@@ -1,5 +1,5 @@
 import asyncio
-from src.cumulative_ack.protocol import CumulativeAckProtocol
+from src.cumulative_ack.protocol import CumulativeAckProtocol, MAX_PACKET_SIZE
 from src.cumulative_ack.message import CumulativeAckProtocolMessage, serialize_message
 from enum import Enum
 import threading
@@ -61,7 +61,11 @@ class Socket:
             self.dst_address = addr
 
     def send(self, data: bytes):
-        self.protocol.push(data)
+        for i in range(0, len(data), MAX_PACKET_SIZE):
+            chunk = data[i:i+MAX_PACKET_SIZE]
+            self.protocol.push(chunk)
+        while len(self.protocol.oustanding_segments) > 0:
+            pass
 
     def recv(self, size: int):
         buffer = self.protocol.receiver_buffer
