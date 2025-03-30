@@ -4,6 +4,7 @@ from src.cumulative_ack.message import serialize_message, parse_message, Cumulat
 from collections import deque
 from typing import Callable
 BUFFER_SIZE = 65535
+MAX_PACKET_SIZE = 1024
 
 class CumulativeAckProtocol:
     def __init__(self, loop: asyncio.AbstractEventLoop, send_func: Callable[[CumulativeAckProtocolMessage], None], accept_handler: Callable[[CumulativeAckProtocolMessage, tuple[str, int]], None]):
@@ -14,8 +15,6 @@ class CumulativeAckProtocol:
         self.send_func = send_func
         # The accept handler handle the syn message for server socket, could be improved
         self.accept_handler = accept_handler
-        # Protocol Information
-        self.MAX_PACKET_SIZE = 1024
 
         # Sender Information
         self.seqno = 0
