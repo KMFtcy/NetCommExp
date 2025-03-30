@@ -56,7 +56,7 @@ class Socket:
         self.protocol.send_to(data, self.dst_address)
 
     def recv(self, size: int):
-        # buffer = self.protocol.receiver_buffer
+        buffer = self.protocol.receiver_buffer
         # bytes_can_read = min(size, buffer.bytes_buffered())
         # if bytes_can_read == 0:
         #     # Create a future to wait for the event
@@ -68,10 +68,9 @@ class Socket:
         # if buffer.bytes_buffered() == 0:
         #     self.protocol.event_bytes_received.clear()
         # return buffer.pop(bytes_can_read)
-        while True:
-            time.sleep(10)
-            print("waiting...")
-        return b"waiting..."
+        while buffer.bytes_buffered() == 0:
+            pass
+        return buffer.pop(size)
 
     def close(self):
         self._stop_event.set()
