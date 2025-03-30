@@ -45,7 +45,7 @@ def parse_message(data: bytes) -> CumulativeAckProtocolMessage:
     
     # Get payload (remaining bytes)
     payload = data[17:]
-    payload = None if not payload else payload
+    payload = b"" if not payload else payload
 
     # Create sender and receiver messages
     sender_msg = CumulativeAckSenderMessage(
@@ -70,10 +70,10 @@ def serialize_message(msg: CumulativeAckProtocolMessage) -> bytes:
     Serialize CumulativeAckProtocolMessage into bytes
     """
     # Convert seqno to 8 bytes (0 if None)
-    seqno_bytes = (msg.sender_message.seqno or 0).to_bytes(8, byteorder='big')
+    seqno_bytes = msg.sender_message.seqno.to_bytes(8, byteorder='big') if msg.sender_message.seqno else b'\x00' * 8
     
     # Convert ackno to 8 bytes (0 if None)
-    ackno_bytes = (msg.receiver_message.ackno or 0).to_bytes(8, byteorder='big')
+    ackno_bytes = msg.receiver_message.ackno.to_bytes(8, byteorder='big') if msg.receiver_message.ackno else b'\x00' * 8
     
     # Create control byte
     control_byte = 0

@@ -17,15 +17,17 @@ class Socket:
         self.dst_address = None
         self.protocol_thread = None
         self._stop_event = threading.Event()
+        self._transport = None
 
     async def loop_func(self):
         print("start loop")
-        self.transport, _ = await self.protocol_event_loop.create_datagram_endpoint(lambda: self.protocol, local_addr=('127.0.0.1', 8080))
-        print("create endpoint on port 8080")
+        new_transport, _ = await self.protocol_event_loop.create_datagram_endpoint(lambda: self.protocol, local_addr=self.src_address)
+        self._transport = new_transport
+        print(f"listening on {self.src_address}")
 
         while not self._stop_event.is_set():
             await asyncio.sleep(1)
-            print("transport listening...")
+            # print("transport listening...")
 
         self.transport.close()
 
@@ -38,6 +40,8 @@ class Socket:
 
     def connect(self, address):
         self.dst_address = address
+        self.protocol_thread = threading.Thread(target=self.start_loop)
+        self.protocol_thread.start()
         return
     
     def listen_and_accept(self):
@@ -46,8 +50,11 @@ class Socket:
         return self
 
     def send(self, data: bytes):
-        pass
-    
+        while not self._transport:
+            print("waiting for transport")
+            time.sleep(1)
+        self.protocol.send_to(data, self.dst_address)
+
     def recv(self, size: int):
         # buffer = self.protocol.receiver_buffer
         # bytes_can_read = min(size, buffer.bytes_buffered())
