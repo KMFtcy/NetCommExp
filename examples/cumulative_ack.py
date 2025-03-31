@@ -2,10 +2,12 @@ import sys
 import os
 import argparse
 import time
+import asyncio
 # Add parent directory to system path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.cumulative_ack.socket import Socket
 from src.cumulative_ack.message import CumulativeAckProtocolMessage, CumulativeAckSenderMessage, CumulativeAckReceiverMessage, serialize_message
+from src.cumulative_ack.protocol import CumulativeAckProtocol
 from socket import socket as UDPSocket, AF_INET, SOCK_DGRAM
 
 def test_bandwidth_as_client(host, port):
@@ -66,7 +68,89 @@ def test_server_running():
     except KeyboardInterrupt:
         server.close()
 
+def test_protocol_push_bandwidth(host, port):
+    # Create event loop and protocol
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
+    def dummy_send_func(msg):
+        pass
+    
+    def dummy_accept_handler(msg, addr):
+        pass
+    
+    protocol = CumulativeAckProtocol(loop, dummy_send_func, dummy_accept_handler)
+    
+    # Test parameters
+    total_size = 10 * 1024 * 1024  # 10MB
+    chunk_size = 1024  # 1KB chunks
+    num_chunks = total_size // chunk_size
+    
+    print(f"Testing protocol push bandwidth with {total_size} bytes in {chunk_size} byte chunks")
+    start_time = time.time()
+    
+    for _ in range(num_chunks):
+        protocol.push(b'a' * chunk_size)
+    
+    # Wait for all data to be acknowledged
+    # while len(protocol.oustanding_segments) > 0:
+    #     time.sleep(0.1)
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    
+    print(f"Time taken: {duration:.2f} seconds")
+    print(f"Bandwidth: {total_size / duration / 1024 / 1024:.2f} MB/s")
+    print(f"Retransmission count: {protocol.retrans_count}")
+    loop.close()
+
+def test_protocol_receive_bandwidth(host, port):
+    # Create event loop and protocol
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    def dummy_send_func(msg):
+        pass
+    
+    def dummy_accept_handler(msg, addr):
+        pass
+    
+    protocol = CumulativeAckProtocol(loop, dummy_send_func, dummy_accept_handler)
+    
+    # Test parameters
+    total_size = 10 * 1024 * 1024  # 10MB
+    chunk_size = 1024  # 1KB chunks
+    num_chunks = total_size // chunk_size
+    
+    print(f"Testing protocol datagram_received bandwidth with {total_size} bytes in {chunk_size} byte chunks")
+    
+    # Pre-generate all messages
+    print("Generating messages...")
+    messages = []
+    dummy_addr = ('127.0.0.1', 9090)
+    
+    for i in range(num_chunks):
+        sender_msg = CumulativeAckSenderMessage(i * chunk_size, b'a' * chunk_size, False, False)
+        receiver_msg = CumulativeAckReceiverMessage(0)  # Initial ackno is 0
+        msg = CumulativeAckProtocolMessage(sender_msg, receiver_msg)
+        serialized_msg = serialize_message(msg)
+        messages.append((serialized_msg, dummy_addr))
+    
+    print("Starting bandwidth test...")
+    start_time = time.time()
+    bytes_received = 0
+    
+    # Process all messages
+    for serialized_msg, addr in messages:
+        protocol.datagram_received(serialized_msg, addr)
+        bytes_received += chunk_size
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    
+    print(f"Time taken: {duration:.2f} seconds")
+    print(f"Bandwidth: {total_size / duration / 1024 / 1024:.2f} MB/s")
+    loop.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Cumulative Ack Test')
@@ -74,6 +158,8 @@ if __name__ == "__main__":
     parser.add_argument('--client-send', action='store_true', help='Test client send message')
     parser.add_argument('--client-send-my', action='store_true', help='Test client send input message')
     parser.add_argument('--bandwidth-client', action='store_true', help='Test bandwidth')
+    parser.add_argument('--protocol-push-bandwidth', action='store_true', help='Test protocol push bandwidth')
+    parser.add_argument('--protocol-receive-bandwidth', action='store_true', help='Test protocol receive bandwidth')
     parser.add_argument('--message', default='Hello, Server!', help='Message to send (client mode only)')
     parser.add_argument('--host', default='localhost', help='Host address (default: localhost)')
     parser.add_argument('--port', type=int, default=8080, help='Port number (default: 8080)')
@@ -88,3 +174,7 @@ if __name__ == "__main__":
         test_my_client_send(args.host, args.port)
     elif args.bandwidth_client:
         test_bandwidth_as_client(args.host, args.port)
+    elif args.protocol_push_bandwidth:
+        test_protocol_push_bandwidth(args.host, args.port)
+    elif args.protocol_receive_bandwidth:
+        test_protocol_receive_bandwidth(args.host, args.port)
