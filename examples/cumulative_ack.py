@@ -13,11 +13,22 @@ def test_bandwidth_as_client(host, port):
     client.bind(('127.0.0.1', 9090))
     client.connect((host, port))
     start_time = time.time()
-    for i in range(1000):
-        client.send(b'a' * 1024)
+    packet_count = 100
+    packet_size = 1024
+    client.send(b'a' * packet_size * packet_count)
     end_time = time.time()
     print(f"Time taken: {end_time - start_time} seconds")
-    print(f"Bandwidth: {10 * 1024 / (end_time - start_time)} bytes/second")
+    print(f"Bandwidth: {packet_count * packet_size / (end_time - start_time)} bytes/second")
+    print(f"retrans count: {client.protocol.retrans_count}")
+    client.close()
+
+def test_bandwidth_as_server(host, port):
+    server = Socket()
+    server.bind(('127.0.0.1', port))
+    server.listen_and_accept()
+    while True:
+        data = server.recv(1024)
+        print(data)
 
 def test_my_client_send(host, port):
     client = Socket()
@@ -28,6 +39,9 @@ def test_my_client_send(host, port):
             input_msg = input("Press Enter to send message")
             client.send(input_msg.encode())
     except KeyboardInterrupt:
+        # client.close()
+        pass
+    finally:
         client.close()
 
 def test_client_send(message, host, port):
@@ -48,7 +62,7 @@ def test_server_running():
     try:
         while True:
             data = server.recv(1024)
-            print(data)
+            # print(data)
     except KeyboardInterrupt:
         server.close()
 
