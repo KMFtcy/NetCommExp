@@ -1,5 +1,5 @@
-from GF256 import GF256
-
+# from GF256 import GF256
+from . import GF256
 class Matrix:
     @staticmethod
     def transpose(matrix):

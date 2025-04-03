@@ -1,6 +1,8 @@
 import random, math
-from BipartiteGraph import BipartiteGraph
-from LinearSystem import LinearSol, Matrix
+from . import BipartiteGraph
+from . import LinearSystem
+# from BipartiteGraph import BipartiteGraph
+# from LinearSystem import LinearSol, Matrix
 
 class LTCommon: 
     """

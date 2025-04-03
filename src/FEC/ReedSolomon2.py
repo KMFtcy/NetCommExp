@@ -1,5 +1,8 @@
-from GF256 import GF256
-from LinearSystem import LinearSol, Matrix
+# from GF256 import GF256
+# from LinearSystem import LinearSol, Matrix
+from . import GF256
+from . import LinearSystem
+
 
 class ReedSolomon:
     def __init__(self, n, k):
