@@ -2,7 +2,7 @@ import ReedSolomon2 as RS
 import random
 import time
 
-def encoding_rate(n, k, method="standard", num_tests=100, msg_size=1000):
+def encoding_rate(n, k, method="standard", num_tests=5, msg_size=1000):
     """
     Measure the Reed-Solomon encoding rate using parameters n and k.
     
@@ -25,7 +25,9 @@ def encoding_rate(n, k, method="standard", num_tests=100, msg_size=1000):
         # Create a message with k rows, each row having msg_size elements
         message = [[random.randint(0, 255) for _ in range(msg_size)] for _ in range(k)]
         messages.append(message)
-    
+        # print the number of bytes in the message
+        print(f"Number of bytes in the message: {len(message) * msg_size}")
+
     # Choose encoding function based on method
     if method == "systematic":
         encode_func = rs.encode_systematic
@@ -48,7 +50,7 @@ def encoding_rate(n, k, method="standard", num_tests=100, msg_size=1000):
     
     return rate
 
-def decoding_rate(n, k, method="standard", num_tests=100, msg_size=1000):
+def decoding_rate(n, k, method="standard", num_tests=10, msg_size=1000):
     """
     Measure the Reed-Solomon decoding rate using parameters n and k.
     
