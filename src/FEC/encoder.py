@@ -110,6 +110,8 @@ class Encoder:
                 # If still running and queue not empty
                 if self.running and not self.encode_queue.empty():
                     data_to_process = self.encode_queue.get()
+                    # 标记编码正在进行
+                    self._encoding_in_progress = True
                     logger.debug("Retrieved data from encoding queue")
             
             # If there's data to process
@@ -157,11 +159,21 @@ class Encoder:
                     except ValueError as e:
                         logger.error(f"Error writing to ByteStream: {e}")
                     
+                    # 移除编码进行中的标记
+                    if hasattr(self, '_encoding_in_progress'):
+                        delattr(self, '_encoding_in_progress')
+                        
                     # Mark task as complete
                     self.encode_queue.task_done()
                     logger.info("Encoding process completed")
                 except Exception as e:
+                    # 移除编码进行中的标记
+                    if hasattr(self, '_encoding_in_progress'):
+                        delattr(self, '_encoding_in_progress')
+                        
                     logger.error(f"Encoding error: {str(e)}", exc_info=True)
+                    # 标记任务完成，即使出错
+                    self.encode_queue.task_done()
                     # Removed sleep to avoid blocking
     
     def _prepare_data(self, data):
@@ -239,6 +251,56 @@ class Encoder:
             if self.encode_thread and self.encode_thread.is_alive():
                 self.encode_thread.join(timeout=1.0)
                 logger.info("Encoder thread stopped")
+    
+    def wait_for_completion(self, timeout=None):
+        """
+        等待所有当前队列中的编码任务完成
+        
+        Parameters:
+            timeout: 超时时间（秒），None表示无限等待
+            
+        Returns:
+            bool: 如果所有任务都已完成返回True，如果超时返回False
+        """
+        # 使用轮询方式检查队列是否完成，因为queue.Queue.join()不支持timeout参数
+        if timeout is None:
+            # 无超时限制，直接使用join
+            self.encode_queue.join()
+            return True
+        else:
+            # 有超时限制，使用轮询
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                # 检查队列是否为空
+                if self.encode_queue.empty() and not hasattr(self, '_encoding_in_progress'):
+                    return True
+                # 非阻塞式等待一小段时间，避免CPU占用过高
+                # time.sleep(0.001)
+            # 超时
+            return False
+    
+    def encode_sync(self, data, timeout=None):
+        """
+        同步编码数据，等待编码完成后返回
+        
+        Parameters:
+            data: 要编码的数据
+            timeout: 超时时间（秒），None表示无限等待
+            
+        Returns:
+            bool: 如果编码成功完成返回True，如果超时返回False
+        """
+        # 先将队列清空
+        with self.condition:
+            while not self.encode_queue.empty():
+                self.encode_queue.get()
+                self.encode_queue.task_done()
+                
+        # 添加数据到队列
+        self.encode(data)
+        
+        # 等待完成
+        return self.wait_for_completion(timeout)
 
 
 

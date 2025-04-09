@@ -5,6 +5,8 @@ import time
 import os
 import sys
 import random
+import timeit
+import statistics
 from unittest.mock import MagicMock, patch
 
 # 添加项目根目录到Python路径
@@ -236,5 +238,174 @@ class TestEncoder(unittest.TestCase):
         self.assertEqual(self.mock_byte_stream.push.call_count, 2)
 
 
+# 添加基准测试类
+class EncoderBenchmark:
+    def __init__(self):
+        # 创建一个真实的ByteStream用于测试
+        self.byte_stream_capacity = 50 * 1024 * 1024  # 50MB容量
+        self.byte_stream = ByteStream(capacity=self.byte_stream_capacity)
+        
+    def setup(self, n=100, k=70):
+        """准备编码器和测试数据"""
+        self.encoder = Encoder(self.byte_stream, n=n, k=k)
+        
+    def teardown(self):
+        """清理编码器"""
+        if hasattr(self, 'encoder'):
+            self.encoder.stop()
+        # 创建新的ByteStream对象替代reset
+        self.byte_stream = ByteStream(capacity=self.byte_stream_capacity)
+    
+    def reset_byte_stream(self):
+        """辅助方法：通过创建新的ByteStream对象清空缓冲区"""
+        self.byte_stream = ByteStream(capacity=self.byte_stream_capacity)
+            
+    def generate_test_data(self, size_kb):
+        """生成指定大小的随机测试数据（以KB为单位）"""
+        size_bytes = size_kb * 1024
+        # 确保数据大小是k的倍数
+        k = self.encoder.k
+        size_bytes = size_bytes + (k - size_bytes % k) if size_bytes % k != 0 else size_bytes
+        return bytes([random.randint(0, 255) for _ in range(size_bytes)])
+    
+    def benchmark_encoding_speed(self, sizes_kb=[10, 50, 100, 500, 1000]):
+        """测试不同数据大小的编码速度"""
+        print("\n===== 编码速度基准测试 =====")
+        print(f"编码参数: n={self.encoder.n}, k={self.encoder.k}")
+        
+        results = {}
+        for size_kb in sizes_kb:
+            test_data = self.generate_test_data(size_kb)
+            data_size_mb = len(test_data) / (1024 * 1024)
+            
+            # 清空ByteStream
+            self.reset_byte_stream()
+            
+            # 预热 - 使用同步编码
+            self.encoder.encode_sync(test_data)
+            
+            # 测量编码时间
+            times = []
+            for _ in range(3):  # 运行3次取平均值
+                self.reset_byte_stream()
+                
+                # 确保测量编码的完整过程
+                start_time = time.time()
+                success = self.encoder.encode_sync(test_data)
+                end_time = time.time()
+                
+                if not success:
+                    print(f"警告: 编码任务可能未完成，结果可能不准确")
+                
+                elapsed = end_time - start_time
+                times.append(elapsed)
+                
+            avg_time = statistics.mean(times)
+            throughput = data_size_mb / avg_time  # MB/s
+            
+            results[size_kb] = {
+                'size_mb': data_size_mb,
+                'avg_time': avg_time,
+                'throughput': throughput
+            }
+            
+            print(f"数据大小: {size_kb} KB ({data_size_mb:.2f} MB)")
+            print(f"平均编码时间: {avg_time:.4f} 秒")
+            print(f"吞吐量: {throughput:.2f} MB/s")
+            print("----------------------------")
+            
+        return results
+    
+    def benchmark_different_parameters(self):
+        """测试不同编码参数的性能"""
+        print("\n===== 不同编码参数基准测试 =====")
+        
+        # 测试不同n和k值的组合
+        test_params = [
+            (100, 50),   # 高冗余度
+            (100, 70),   # 中等冗余度
+            (100, 90),   # 低冗余度
+            (200, 100),  # 更大的块大小
+            (50, 35),    # 更小的块大小
+        ]
+        
+        test_size_kb = 500  # 固定测试大小为500KB
+        
+        results = {}
+        for n, k in test_params:
+            # 重新设置编码器
+            self.teardown()
+            self.setup(n=n, k=k)
+            
+            test_data = self.generate_test_data(test_size_kb)
+            data_size_mb = len(test_data) / (1024 * 1024)
+            
+            # 清空ByteStream
+            self.reset_byte_stream()
+            
+            # 预热 - 使用同步编码
+            self.encoder.encode_sync(test_data)
+            
+            # 测量编码时间
+            times = []
+            for _ in range(3):
+                self.reset_byte_stream()
+                
+                # 确保测量编码的完整过程
+                start_time = time.time()
+                success = self.encoder.encode_sync(test_data)
+                end_time = time.time()
+                
+                if not success:
+                    print(f"警告: 编码任务可能未完成，结果可能不准确")
+                
+                elapsed = end_time - start_time
+                times.append(elapsed)
+                
+            avg_time = statistics.mean(times)
+            throughput = data_size_mb / avg_time  # MB/s
+            
+            results[(n, k)] = {
+                'avg_time': avg_time,
+                'throughput': throughput
+            }
+            
+            print(f"参数: n={n}, k={k}, 冗余度={(n-k)/n:.2f}")
+            print(f"数据大小: {test_size_kb} KB ({data_size_mb:.2f} MB)")
+            print(f"平均编码时间: {avg_time:.4f} 秒")
+            print(f"吞吐量: {throughput:.2f} MB/s")
+            print("----------------------------")
+            
+        return results
+    
+    def run_all_benchmarks(self):
+        """运行所有基准测试"""
+        self.setup()
+        
+        try:
+            print("\n========== FEC编码器性能基准测试 ==========")
+            speed_results = self.benchmark_encoding_speed()
+            param_results = self.benchmark_different_parameters()
+            
+            # 结果摘要
+            print("\n========== 测试结果摘要 ==========")
+            print("1. 不同数据大小的吞吐量 (MB/s):")
+            for size_kb, result in speed_results.items():
+                print(f"   - {size_kb} KB: {result['throughput']:.2f} MB/s")
+                
+            print("\n2. 不同编码参数的吞吐量 (MB/s):")
+            for (n, k), result in param_results.items():
+                print(f"   - n={n}, k={k}, 冗余度={(n-k)/n:.2f}: {result['throughput']:.2f} MB/s")
+                
+        finally:
+            self.teardown()
+
+
+# 如果直接运行此文件，则执行基准测试
 if __name__ == '__main__':
-    unittest.main()
+    # 如果需要单独运行基准测试，取消下面的注释
+    benchmark = EncoderBenchmark()
+    benchmark.run_all_benchmarks()
+    
+    # 运行标准单元测试
+    # unittest.main()
