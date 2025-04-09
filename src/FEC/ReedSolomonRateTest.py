@@ -1,4 +1,4 @@
-import ReedSolomon2 as RS
+from src.FEC.ReedSolomon2 import ReedSolomon as RS
 import random
 import time
 

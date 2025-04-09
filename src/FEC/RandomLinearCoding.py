@@ -1,6 +1,6 @@
 import random
 from copy import deepcopy
-from LinearSystem import Matrix, LinearSol
+from src.FEC.LinearSystem import Matrix, LinearSol
 
 class RandomLinearCode:
     def __init__(self, k):

@@ -1,7 +1,7 @@
 # from GF256 import GF256
 # from LinearSystem import LinearSol, Matrix
-from . import GF256
-from . import LinearSystem
+from src.FEC.GF256 import GF256
+from src.FEC.LinearSystem import LinearSol, Matrix
 
 
 class ReedSolomon:

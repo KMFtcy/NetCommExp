@@ -1,6 +1,6 @@
 import random, math
-from . import BipartiteGraph
-from . import LinearSystem
+from src.FEC.BipartiteGraph import BipartiteGraph
+from src.FEC.LinearSystem import LinearSol, Matrix
 # from BipartiteGraph import BipartiteGraph
 # from LinearSystem import LinearSol, Matrix
 

@@ -1,6 +1,6 @@
 import random
 import time
-from LTCoding import LTEncoder, LTDecoder
+from src.FEC.LTCoding import LTEncoder, LTDecoder
 
 def encoding_rate(k, num_packets, dist_type="Robust Soliton", num_tests=100, msg_size=1000):
     """
