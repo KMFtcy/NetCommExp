@@ -9,7 +9,7 @@ import timeit
 import statistics
 from unittest.mock import MagicMock, patch
 
-# 添加项目根目录到Python路径
+# Add project root directory to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.FEC.encoder import Encoder, CodeType
@@ -18,17 +18,17 @@ from src.util.byte_stream import ByteStream
 
 class TestEncoder(unittest.TestCase):
     def setUp(self):
-        # 创建一个模拟的ByteStream用于测试
+        # Create a mock ByteStream for testing
         self.mock_byte_stream = MagicMock(spec=ByteStream)
         self.mock_byte_stream.available_capacity.return_value = 1000
         
     def tearDown(self):
-        # 确保每个测试后encoder都被停止
+        # Ensure encoder is stopped after each test
         if hasattr(self, 'encoder') and self.encoder:
             self.encoder.stop()
 
     def test_init_reed_solomon(self):
-        """测试使用Reed-Solomon编码初始化encoder"""
+        """Test initializing encoder with Reed-Solomon coding"""
         encoder = Encoder(self.mock_byte_stream, code_type=CodeType.REED_SOLOMON, n=100, k=70)
         self.assertEqual(encoder.code_type, CodeType.REED_SOLOMON)
         self.assertEqual(encoder.n, 100)
@@ -38,18 +38,18 @@ class TestEncoder(unittest.TestCase):
         
 
     def test_init_lt_coding(self):
-        """测试使用LT编码初始化encoder"""
-        # 验证LT编码初始化时会抛出ValueError（未实现的功能）
+        """Test initializing encoder with LT coding"""
+        # Verify that LT coding initialization raises ValueError (unimplemented feature)
         with self.assertRaises(ValueError) as context:
             encoder = Encoder(self.mock_byte_stream, code_type=CodeType.LT_CODING, n=100, k=70)
         
-        # 验证异常消息内容是否正确
+        # Verify that the exception message is correct
         self.assertIn("LT Coding is not supported yet", str(context.exception))
         
-        # 不需要调用encoder.stop()，因为encoder对象未成功创建
+        # No need to call encoder.stop() as the encoder object was not successfully created
 
     def test_encode_bytes_data(self):
-        """测试编码bytes类型数据"""
+        """Test encoding bytes type data"""
         k = 5
         encoder = Encoder(self.mock_byte_stream, n=10, k=k)
         # Ensure data length is a multiple of k (5)
@@ -62,15 +62,15 @@ class TestEncoder(unittest.TestCase):
         
         encoder.encode(test_data)
         
-        # 给编码线程一些时间来处理数据
+        # Give the encoding thread some time to process the data
         time.sleep(0.5)
         
-        # 验证ByteStream.push被调用
+        # Verify that ByteStream.push was called
         self.mock_byte_stream.push.assert_called()
         encoder.stop()
 
     def test_encode_list_data(self):
-        """测试编码list类型数据"""
+        """Test encoding list type data"""
         k = 5
         encoder = Encoder(self.mock_byte_stream, n=10, k=k)
         # Exactly k packets to match encoding parameter
@@ -81,41 +81,41 @@ class TestEncoder(unittest.TestCase):
         
         encoder.encode(padded_data)
         
-        # 给编码线程一些时间来处理数据
+        # Give the encoding thread some time to process the data
         time.sleep(0.5)
         
-        # 验证ByteStream.push被调用
+        # Verify that ByteStream.push was called
         self.mock_byte_stream.push.assert_called()
         encoder.stop()
     
     def test_insufficient_space(self):
-        """测试ByteStream空间不足的情况"""
-        # 模拟一个容量很小的ByteStream
+        """Test the case of insufficient ByteStream space"""
+        # Simulate a ByteStream with very small capacity
         self.mock_byte_stream.available_capacity.return_value = 10
         encoder = Encoder(self.mock_byte_stream, n=10, k=5)
         
-        # 创建一个大于允许大小的数据
+        # Create data larger than the allowed size
         test_data = b"This data is too large for the ByteStream"
         
-        # 测试是否会抛出ValueError
+        # Test if ValueError is raised
         with self.assertRaises(ValueError):
             encoder.encode(test_data)
             
         encoder.stop()
 
     def test_empty_data(self):
-        """测试编码空数据"""
+        """Test encoding empty data"""
         encoder = Encoder(self.mock_byte_stream, n=10, k=5)
         encoder.encode(b"")
         
-        # 给编码线程一些时间来处理数据
+        # Give the encoding thread some time to process the data
         time.sleep(0.5)
         
-        # 验证编码过程不会崩溃
+        # Verify that the encoding process doesn't crash
         encoder.stop()
         
     def test_small_data(self):
-        """测试编码小数据（小于k）"""
+        """Test encoding small data (less than k)"""
         k = 5
         encoder = Encoder(self.mock_byte_stream, n=10, k=k)
         # Create data that's exactly a multiple of k
@@ -123,15 +123,15 @@ class TestEncoder(unittest.TestCase):
         
         encoder.encode(test_data)
         
-        # 给编码线程一些时间来处理数据
+        # Give the encoding thread some time to process the data
         time.sleep(0.5)
         
-        # 验证ByteStream.push被调用
+        # Verify that ByteStream.push was called
         self.mock_byte_stream.push.assert_called()
         encoder.stop()
         
     def test_large_data(self):
-        """测试编码大数据"""
+        """Test encoding large data"""
         k = 5
         encoder = Encoder(self.mock_byte_stream, n=10, k=k)
         # Create data size that's a multiple of k
@@ -140,19 +140,19 @@ class TestEncoder(unittest.TestCase):
         
         encoder.encode(large_data)
         
-        # 给编码线程一些时间来处理数据
+        # Give the encoding thread some time to process the data
         time.sleep(0.5)
         
-        # 验证ByteStream.push被调用
+        # Verify that ByteStream.push was called
         self.mock_byte_stream.push.assert_called()
         encoder.stop()
         
     def test_multiple_encode_calls(self):
-        """测试多次调用encode方法"""
+        """Test multiple calls to the encode method"""
         k = 5
         encoder = Encoder(self.mock_byte_stream, n=10, k=k)
         
-        # 多次调用encode, ensure each call's data is a multiple of k
+        # Call encode multiple times, ensure each call's data is a multiple of k
         for i in range(5):
             base_data = f"Test data {i}".encode()
             remainder = len(base_data) % k
@@ -160,40 +160,40 @@ class TestEncoder(unittest.TestCase):
             padded_data = base_data + b"\x00" * padding
             
             encoder.encode(padded_data)
-            time.sleep(0.1)  # 给一些时间处理
+            time.sleep(0.1)  # Give some time to process
             
-        # 验证ByteStream.push被调用了5次
+        # Verify that ByteStream.push was called 5 times
         self.assertEqual(self.mock_byte_stream.push.call_count, 5)
         encoder.stop()
         
     def test_stop_and_restart(self):
-        """测试停止和重启encoder"""
+        """Test stopping and restarting the encoder"""
         encoder = Encoder(self.mock_byte_stream, n=10, k=5)
         self.assertTrue(encoder.running)
         
-        # 停止encoder
+        # Stop the encoder
         encoder.stop()
         self.assertFalse(encoder.running)
         
-        # 重启encoder
+        # Restart the encoder
         encoder.start()
         self.assertTrue(encoder.running)
         encoder.stop()
         
     def test_bytestream_full_during_encoding(self):
-        """测试在编码过程中ByteStream变满的情况"""
-        # 首先模拟ByteStream有足够空间
+        """Test the case where ByteStream becomes full during encoding"""
+        # First simulate that ByteStream has enough space
         k = 5
         self.mock_byte_stream.available_capacity.return_value = 1000
         encoder = Encoder(self.mock_byte_stream, n=10, k=k)
         
-        # 模拟push时ByteStream已满的情况
+        # Simulate the case where ByteStream is full during push
         def side_effect(data):
             raise ValueError("ByteStream is full")
             
         self.mock_byte_stream.push.side_effect = side_effect
         
-        # 尝试编码数据, ensure data is a multiple of k
+        # Try to encode data, ensure data is a multiple of k
         base_data = b"Test data"
         remainder = len(base_data) % k
         padding = (k - remainder) if remainder > 0 else 0
@@ -201,16 +201,16 @@ class TestEncoder(unittest.TestCase):
         
         encoder.encode(test_data)
         
-        # 给编码线程一些时间来处理数据
+        # Give the encoding thread some time to process the data
         time.sleep(0.5)
         
-        # 验证push被调用但出现了错误
+        # Verify that push was called but encountered an error
         self.mock_byte_stream.push.assert_called()
         encoder.stop()
         
     def test_different_n_k_values(self):
-        """测试不同的n和k值"""
-        # 测试k接近n的情况
+        """Test different n and k values"""
+        # Test the case where k is close to n
         k1 = 95
         encoder1 = Encoder(self.mock_byte_stream, n=100, k=k1)
         base_data1 = b"Test data for high k/n ratio"
@@ -222,7 +222,7 @@ class TestEncoder(unittest.TestCase):
         time.sleep(0.5)
         encoder1.stop()
         
-        # 测试k远小于n的情况
+        # Test the case where k is much smaller than n
         k2 = 20
         encoder2 = Encoder(self.mock_byte_stream, n=100, k=k2)
         base_data2 = b"Test data for low k/n ratio"
@@ -234,68 +234,68 @@ class TestEncoder(unittest.TestCase):
         time.sleep(0.5)
         encoder2.stop()
         
-        # 验证两种情况都能正常工作
+        # Verify that both cases work properly
         self.assertEqual(self.mock_byte_stream.push.call_count, 2)
 
 
-# 添加基准测试类
+# Add benchmark test class
 class EncoderBenchmark:
     def __init__(self):
-        # 创建一个真实的ByteStream用于测试
-        self.byte_stream_capacity = 50 * 1024 * 1024  # 50MB容量
+        # Create a real ByteStream for testing
+        self.byte_stream_capacity = 50 * 1024 * 1024  # 50MB capacity
         self.byte_stream = ByteStream(capacity=self.byte_stream_capacity)
         
     def setup(self, n=100, k=70):
-        """准备编码器和测试数据"""
+        """Prepare encoder and test data"""
         self.encoder = Encoder(self.byte_stream, n=n, k=k)
         
     def teardown(self):
-        """清理编码器"""
+        """Clean up the encoder"""
         if hasattr(self, 'encoder'):
             self.encoder.stop()
-        # 创建新的ByteStream对象替代reset
+        # Create a new ByteStream object to replace reset
         self.byte_stream = ByteStream(capacity=self.byte_stream_capacity)
     
     def reset_byte_stream(self):
-        """辅助方法：通过创建新的ByteStream对象清空缓冲区"""
+        """Helper method: Clear the buffer by creating a new ByteStream object"""
         self.byte_stream = ByteStream(capacity=self.byte_stream_capacity)
             
     def generate_test_data(self, size_kb):
-        """生成指定大小的随机测试数据（以KB为单位）"""
+        """Generate random test data of the specified size (in KB)"""
         size_bytes = size_kb * 1024
-        # 确保数据大小是k的倍数
+        # Ensure the data size is a multiple of k
         k = self.encoder.k
         size_bytes = size_bytes + (k - size_bytes % k) if size_bytes % k != 0 else size_bytes
         return bytes([random.randint(0, 255) for _ in range(size_bytes)])
     
     def benchmark_encoding_speed(self, sizes_kb=[10, 50, 100, 500, 1000]):
-        """测试不同数据大小的编码速度"""
-        print("\n===== 编码速度基准测试 =====")
-        print(f"编码参数: n={self.encoder.n}, k={self.encoder.k}")
+        """Test encoding speed for different data sizes"""
+        print("\n===== Encoding Speed Benchmark =====")
+        print(f"Encoding parameters: n={self.encoder.n}, k={self.encoder.k}")
         
         results = {}
         for size_kb in sizes_kb:
             test_data = self.generate_test_data(size_kb)
             data_size_mb = len(test_data) / (1024 * 1024)
             
-            # 清空ByteStream
+            # Clear the ByteStream
             self.reset_byte_stream()
             
-            # 预热 - 使用同步编码
+            # Warm-up - use synchronous encoding
             self.encoder.encode_sync(test_data)
             
-            # 测量编码时间
+            # Measure encoding time
             times = []
-            for _ in range(3):  # 运行3次取平均值
+            for _ in range(3):  # Run 3 times and take the average
                 self.reset_byte_stream()
                 
-                # 确保测量编码的完整过程
+                # Ensure we measure the complete encoding process
                 start_time = time.time()
                 success = self.encoder.encode_sync(test_data)
                 end_time = time.time()
                 
                 if not success:
-                    print(f"警告: 编码任务可能未完成，结果可能不准确")
+                    print(f"Warning: Encoding task may not have completed, results may be inaccurate")
                 
                 elapsed = end_time - start_time
                 times.append(elapsed)
@@ -309,55 +309,55 @@ class EncoderBenchmark:
                 'throughput': throughput
             }
             
-            print(f"数据大小: {size_kb} KB ({data_size_mb:.2f} MB)")
-            print(f"平均编码时间: {avg_time:.4f} 秒")
-            print(f"吞吐量: {throughput:.2f} MB/s")
+            print(f"Data size: {size_kb} KB ({data_size_mb:.2f} MB)")
+            print(f"Average encoding time: {avg_time:.4f} seconds")
+            print(f"Throughput: {throughput:.2f} MB/s")
             print("----------------------------")
             
         return results
     
     def benchmark_different_parameters(self):
-        """测试不同编码参数的性能"""
-        print("\n===== 不同编码参数基准测试 =====")
+        """Test performance with different encoding parameters"""
+        print("\n===== Different Encoding Parameters Benchmark =====")
         
-        # 测试不同n和k值的组合
+        # Test different combinations of n and k values
         test_params = [
-            (100, 50),   # 高冗余度
-            (100, 70),   # 中等冗余度
-            (100, 90),   # 低冗余度
-            (200, 100),  # 更大的块大小
-            (50, 35),    # 更小的块大小
+            (100, 50),   # High redundancy
+            (100, 70),   # Medium redundancy
+            (100, 90),   # Low redundancy
+            (200, 100),  # Larger block size
+            (50, 35),    # Smaller block size
         ]
         
-        test_size_kb = 500  # 固定测试大小为500KB
+        test_size_kb = 500  # Fixed test size of 500KB
         
         results = {}
         for n, k in test_params:
-            # 重新设置编码器
+            # Reset the encoder
             self.teardown()
             self.setup(n=n, k=k)
             
             test_data = self.generate_test_data(test_size_kb)
             data_size_mb = len(test_data) / (1024 * 1024)
             
-            # 清空ByteStream
+            # Clear the ByteStream
             self.reset_byte_stream()
             
-            # 预热 - 使用同步编码
+            # Warm-up - use synchronous encoding
             self.encoder.encode_sync(test_data)
             
-            # 测量编码时间
+            # Measure encoding time
             times = []
             for _ in range(3):
                 self.reset_byte_stream()
                 
-                # 确保测量编码的完整过程
+                # Ensure we measure the complete encoding process
                 start_time = time.time()
                 success = self.encoder.encode_sync(test_data)
                 end_time = time.time()
                 
                 if not success:
-                    print(f"警告: 编码任务可能未完成，结果可能不准确")
+                    print(f"Warning: Encoding task may not have completed, results may be inaccurate")
                 
                 elapsed = end_time - start_time
                 times.append(elapsed)
@@ -370,42 +370,43 @@ class EncoderBenchmark:
                 'throughput': throughput
             }
             
-            print(f"参数: n={n}, k={k}, 冗余度={(n-k)/n:.2f}")
-            print(f"数据大小: {test_size_kb} KB ({data_size_mb:.2f} MB)")
-            print(f"平均编码时间: {avg_time:.4f} 秒")
-            print(f"吞吐量: {throughput:.2f} MB/s")
+            print(f"Parameters: n={n}, k={k}, redundancy={(n-k)/n:.2f}")
+            print(f"Data size: {test_size_kb} KB ({data_size_mb:.2f} MB)")
+            print(f"Average encoding time: {avg_time:.4f} seconds")
+            print(f"Throughput: {throughput:.2f} MB/s")
             print("----------------------------")
             
         return results
     
     def run_all_benchmarks(self):
-        """运行所有基准测试"""
+        """Run all benchmark tests"""
         self.setup()
         
         try:
-            print("\n========== FEC编码器性能基准测试 ==========")
+            print("\n========== FEC Encoder Performance Benchmark ==========")
             speed_results = self.benchmark_encoding_speed()
             param_results = self.benchmark_different_parameters()
             
-            # 结果摘要
-            print("\n========== 测试结果摘要 ==========")
-            print("1. 不同数据大小的吞吐量 (MB/s):")
+            # Results summary
+            print("\n========== Test Results Summary ==========")
+            print("1. Throughput for different data sizes (MB/s):")
             for size_kb, result in speed_results.items():
                 print(f"   - {size_kb} KB: {result['throughput']:.2f} MB/s")
                 
-            print("\n2. 不同编码参数的吞吐量 (MB/s):")
+            print("\n2. Throughput for different encoding parameters (MB/s):")
             for (n, k), result in param_results.items():
-                print(f"   - n={n}, k={k}, 冗余度={(n-k)/n:.2f}: {result['throughput']:.2f} MB/s")
+                print(f"   - n={n}, k={k}, redundancy={(n-k)/n:.2f}: {result['throughput']:.2f} MB/s")
                 
         finally:
             self.teardown()
 
 
-# 如果直接运行此文件，则执行基准测试
+# If this file is run directly, execute benchmark tests
 if __name__ == '__main__':
-    # 如果需要单独运行基准测试，取消下面的注释
+    # Uncomment the following to run benchmark tests separately
+    # Run standard unit tests
+    unittest.main()
+
     benchmark = EncoderBenchmark()
     benchmark.run_all_benchmarks()
     
-    # 运行标准单元测试
-    # unittest.main()

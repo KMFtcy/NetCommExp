@@ -1,7 +1,6 @@
 import threading
 from enum import Enum
 import time
-import queue
 import logging
 from src.FEC.LTCoding import LTEncoder as LTC
 from src.util.byte_stream import ByteStream
@@ -44,8 +43,10 @@ class Encoder:
         self.encode_thread = None
         self.running = False
         
-        # Add encoding queue
-        self.encode_queue = queue.Queue()
+        # Direct data reference
+        self.current_data = None
+        self.data_available = False
+        self.data_processed = True
         self.condition = threading.Condition()
         
         # Initialize encoder
@@ -62,7 +63,7 @@ class Encoder:
             
     def encode(self, data):
         """
-        Add data to the encoding queue
+        Process data for encoding
         
         Parameters:
             data: The data to be encoded
@@ -88,31 +89,37 @@ class Encoder:
             logger.error(f"Input data size ({data_size} bytes) exceeds allowed size ({max_allowed_size} bytes), ByteStream space insufficient")
             raise ValueError(f"Input data size ({data_size} bytes) exceeds allowed size ({max_allowed_size} bytes), ByteStream space insufficient")
         
-        # Add data to encoding queue
+        # Set the data directly and notify thread
         with self.condition:
-            self.encode_queue.put(data)
-            self.condition.notify()  # Notify waiting thread
-            logger.debug(f"Added {data_size} bytes to encoding queue")
+            while not self.data_processed and self.running:
+                logger.debug("Waiting for previous encoding to complete")
+                self.condition.wait()
+            
+            self.current_data = data
+            self.data_available = True
+            self.data_processed = False
+            self.condition.notify()
+            logger.debug(f"Data reference set, notified encoding thread")
     
     def _encoding_loop(self):
-        """Main loop of the encoding thread, gets data from the queue and encodes it"""
+        """Main loop of the encoding thread, processes data when available"""
         logger.info("Encoding thread started")
         while self.running:
             data_to_process = None
             
             # Wait using condition variable
             with self.condition:
-                while self.running and self.encode_queue.empty():
+                while self.running and not self.data_available:
                     # Wait for notification, doesn't consume CPU
                     logger.debug("Encoding thread waiting for data")
                     self.condition.wait()
                 
-                # If still running and queue not empty
-                if self.running and not self.encode_queue.empty():
-                    data_to_process = self.encode_queue.get()
-                    # 标记编码正在进行
+                # If still running and data is available
+                if self.running and self.data_available:
+                    data_to_process = self.current_data
+                    self.data_available = False
                     self._encoding_in_progress = True
-                    logger.debug("Retrieved data from encoding queue")
+                    logger.debug("Retrieved data reference for encoding")
             
             # If there's data to process
             if data_to_process:
@@ -159,22 +166,25 @@ class Encoder:
                     except ValueError as e:
                         logger.error(f"Error writing to ByteStream: {e}")
                     
-                    # 移除编码进行中的标记
-                    if hasattr(self, '_encoding_in_progress'):
-                        delattr(self, '_encoding_in_progress')
+                    # Mark encoding as complete
+                    with self.condition:
+                        if hasattr(self, '_encoding_in_progress'):
+                            delattr(self, '_encoding_in_progress')
+                        self.current_data = None
+                        self.data_processed = True
+                        self.condition.notify_all()
                         
-                    # Mark task as complete
-                    self.encode_queue.task_done()
                     logger.info("Encoding process completed")
                 except Exception as e:
-                    # 移除编码进行中的标记
-                    if hasattr(self, '_encoding_in_progress'):
-                        delattr(self, '_encoding_in_progress')
+                    # Mark encoding as complete even if error occurred
+                    with self.condition:
+                        if hasattr(self, '_encoding_in_progress'):
+                            delattr(self, '_encoding_in_progress')
+                        self.current_data = None
+                        self.data_processed = True
+                        self.condition.notify_all()
                         
                     logger.error(f"Encoding error: {str(e)}", exc_info=True)
-                    # 标记任务完成，即使出错
-                    self.encode_queue.task_done()
-                    # Removed sleep to avoid blocking
     
     def _prepare_data(self, data):
         """Split input data into k symbols, padding with zeros if necessary"""
@@ -216,9 +226,9 @@ class Encoder:
             else:
                 packet_bytes = packet
             
-            # Add symbol length header
-            length = len(packet_bytes)
-            result.extend(length.to_bytes(4, byteorder='big'))
+            # # Add symbol length header
+            # length = len(packet_bytes)
+            # result.extend(length.to_bytes(4, byteorder='big'))
             result.extend(packet_bytes)
         
         logger.debug(f"Serialized {len(encoded_data)} packets into {len(result)} bytes")
@@ -254,52 +264,46 @@ class Encoder:
     
     def wait_for_completion(self, timeout=None):
         """
-        等待所有当前队列中的编码任务完成
+        Wait for current encoding task to complete
         
         Parameters:
-            timeout: 超时时间（秒），None表示无限等待
+            timeout: Timeout in seconds, None means wait indefinitely
             
         Returns:
-            bool: 如果所有任务都已完成返回True，如果超时返回False
+            bool: True if encoding completed, False if timeout occurred
         """
-        # 使用轮询方式检查队列是否完成，因为queue.Queue.join()不支持timeout参数
-        if timeout is None:
-            # 无超时限制，直接使用join
-            self.encode_queue.join()
-            return True
-        else:
-            # 有超时限制，使用轮询
-            start_time = time.time()
-            while time.time() - start_time < timeout:
-                # 检查队列是否为空
-                if self.encode_queue.empty() and not hasattr(self, '_encoding_in_progress'):
-                    return True
-                # 非阻塞式等待一小段时间，避免CPU占用过高
-                # time.sleep(0.001)
-            # 超时
-            return False
+        start_time = time.time()
+        with self.condition:
+            while not self.data_processed and self.running:
+                if timeout is not None:
+                    remaining_time = timeout - (time.time() - start_time)
+                    if remaining_time <= 0:
+                        return False
+                    self.condition.wait(timeout=remaining_time)
+                else:
+                    self.condition.wait()
+            return self.data_processed
     
     def encode_sync(self, data, timeout=None):
         """
-        同步编码数据，等待编码完成后返回
+        Synchronously encode data, return after encoding completes
         
         Parameters:
-            data: 要编码的数据
-            timeout: 超时时间（秒），None表示无限等待
+            data: Data to be encoded
+            timeout: Timeout in seconds, None means wait indefinitely
             
         Returns:
-            bool: 如果编码成功完成返回True，如果超时返回False
+            bool: True if encoding completed successfully, False if timeout occurred
         """
-        # 先将队列清空
+        # Wait for any previous encoding to complete
         with self.condition:
-            while not self.encode_queue.empty():
-                self.encode_queue.get()
-                self.encode_queue.task_done()
+            while not self.data_processed and self.running:
+                self.condition.wait()
                 
-        # 添加数据到队列
+        # Add data for encoding
         self.encode(data)
         
-        # 等待完成
+        # Wait for completion
         return self.wait_for_completion(timeout)
 
 
